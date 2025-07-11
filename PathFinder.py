@@ -119,7 +119,7 @@ class PathFinder:
     def __init__(self, grid_size: int, path_min_len: int = 4, path_max_len: int = 36, path_max_node_distance: int = 1, path_prefix: Tuple[Union[int, str]] = [], path_suffix: Tuple[Union[int, str]] = [], excluded_nodes: Set[Union[int, str]] = []):
         if grid_size not in self._graphs:
             raise ValueError(
-                f'Invalid grid_size: {grid_size}. Available sizes are: {list(self._graphs.keys())}')
+                f'Unsupported grid size: {grid_size}. Available sizes are: {list(self._graphs.keys())}')
         self._grid_size = grid_size
         graph_data = self._graphs.get(self._grid_size, {})
         self._graph = graph_data.get("graph", [])
@@ -200,44 +200,54 @@ class PathFinder:
             return total_paths
 
     def dfs(self) -> Tuple[bool, List]:
-        visited = set(self._path_prefix)
-        if self._path_suffix:
-            path_suffix = set(self._path_suffix)  # Don't convert to int, keep original types
-        else:
-            path_suffix = set()
-
         def dfs_helper(node: Union[int, str], path: List[Union[int, str]]) -> Tuple[bool, List]:
             path = list(path)
             path.append(node)
-            visited.add(node)
 
+            # Check if path meets minimum length and suffix requirements
             if len(path) >= self._path_min_len:
-                if path[-1] in path_suffix or not path_suffix:
+                # Check suffix constraint
+                if self._path_suffix:
+                    suffix_match = True
+                    if len(path) >= len(self._path_suffix):
+                        path_suffix = path[-len(self._path_suffix):]
+                        if path_suffix != list(self._path_suffix):
+                            suffix_match = False
+                    else:
+                        suffix_match = False
+                else:
+                    suffix_match = True
+                
+                if suffix_match:
                     success, _path = self.process_path(path)
                     if success:
                         return (success, _path)
 
+            # Continue DFS if we haven't reached max length
             if len(path) < self._path_max_len:
                 for neighbor in self._neighbors[str(node)]:
-                    if neighbor not in self._excluded_nodes and neighbor not in visited:
+                    # Skip excluded nodes and already visited nodes
+                    if neighbor not in self._excluded_nodes and neighbor not in path:
                         success, _path = dfs_helper(neighbor, path)
                         if success:
                             return (success, _path)
 
-            path.pop()
-            visited.remove(node)
-
             return (False, None)
 
-        if not self._path_prefix:
-            for node in self._graph:
-                success, _path = dfs_helper(node, [])
-                if success:
-                    return (success, _path)
-        else:
-            success, _path = dfs_helper(
-                self._path_prefix[-1], self._path_prefix[:-1])
+        # Start DFS from prefix if specified, otherwise try all nodes
+        if self._path_prefix:
+            # Start with the prefix
+            current_path = list(self._path_prefix[:-1])  # All but last node
+            last_node = self._path_prefix[-1]
+            success, _path = dfs_helper(last_node, current_path)
             if success:
                 return (success, _path)
+        else:
+            # Try starting from each node
+            for node in self._graph:
+                if node not in self._excluded_nodes:
+                    success, _path = dfs_helper(node, [])
+                    if success:
+                        return (success, _path)
 
-        return False, []
+        return (False, [])

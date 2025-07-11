@@ -14,7 +14,7 @@ class Config:
     excluded_nodes: List[Union[int, str]] = field(default_factory=list)
     attempt_delay: float = 0.0
     test_path: Tuple[Union[int, str]] = ()
-    stdout_normal: str = Tuple[str]
+    stdout_normal: str = ''
     stdout_success: str = ''
     stdout_error: str = ''
     paths_log_file_path: str = ''

@@ -153,14 +153,14 @@ In the config.yaml file you can tweak a few constants for:
 * ~~Build CountPathHandler~~
 * ~~Move DFS variable reading/parameters to class level~~
 * ~~Implement testing framework (pytest)~~
-* ~~Write tests (~~unit test~~, integration test)~~
+* ~~Write tests (unit test, integration test)~~
 * ~~Order handlers (ADB, iOS, Print, Test, Log)~~
 * Fix logging to file from ADB handler)
 * ~~Fix PrintHandler not showing correct path~~
 * Fix dfs not respecting config min/max path length and excluding nodes, and path prefix/suffix
 * Improve error handling
 * ~~Add documentation~~
-* Verify tests
+* ~~Verify tests~~
 * ~~Make config loading consistent and efficient (config object, class assignment, vs direct loading)~~
 
 ## License

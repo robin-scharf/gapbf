@@ -23,7 +23,14 @@ class Logger:
         return cls._instance
 
 def get_logger(calling_function=None, log_level='critical'):
-    logger = logging.getLogger(calling_function)
+    # Create logger with the calling function name, or use root if None
+    if calling_function is None:
+        logger = logging.getLogger()
+    else:
+        logger = logging.getLogger(calling_function)
+    
+    # Clear existing handlers to avoid duplicates
+    logger.handlers.clear()
     
     # Define a mapping from string values to corresponding logging levels
     log_level_mapping = {
@@ -35,9 +42,21 @@ def get_logger(calling_function=None, log_level='critical'):
     }
     
     # Get the corresponding logging level or default to ERROR
-    level = log_level_mapping.get(log_level.lower())
+    level = log_level_mapping.get(log_level.lower(), logging.ERROR)
     
     # Set the logging level
     logger.setLevel(level)
     
+    # Add handler with formatter
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+    
+    return logger
+
+def add_file_handler(logger, file_path):
+    """Add a file handler to an existing logger."""
+    file_handler = logging.FileHandler(file_path)
+    file_handler.setFormatter(formatter)
+    logger.addHandler(file_handler)
     return logger

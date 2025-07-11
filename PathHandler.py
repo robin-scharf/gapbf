@@ -39,16 +39,48 @@ class PathHandler(ABC):
             self.logger.debug(f"Found existing paths log file at {paths_log_file_path}")
             with open(paths_log_file_path, newline='') as f:
                 reader = csv.reader(f)
-                if csv.Sniffer().has_header(f.read(1024)):
-                    f.seek(0) 
-                    next(reader) 
+                # Read first row to check if it's a header
                 try:
+                    first_row = next(reader, None)
+                    if first_row and first_row[0] != 'timestamp':
+                        # Not a header, process this row
+                        if len(first_row) >= 2:
+                            # Reconstruct path from CSV fields - join fields that form the path
+                            path_parts = []
+                            found_start = False
+                            for i, field in enumerate(first_row[1:], 1):  # Skip timestamp
+                                if field.startswith('['):
+                                    found_start = True
+                                    path_parts.append(field)
+                                elif found_start and field.endswith(']'):
+                                    path_parts.append(field)
+                                    break
+                                elif found_start:
+                                    path_parts.append(field)
+                            if path_parts:
+                                attempted_paths.append(','.join(path_parts))
+                    
+                    # Process remaining rows
                     for row in reader:
                         if len(row) >= 2:
-                            attempted_paths.append(row[1])
+                            # Reconstruct path from CSV fields
+                            path_parts = []
+                            found_start = False
+                            for i, field in enumerate(row[1:], 1):  # Skip timestamp
+                                if field.startswith('['):
+                                    found_start = True
+                                    path_parts.append(field)
+                                elif found_start and field.endswith(']'):
+                                    path_parts.append(field)
+                                    break
+                                elif found_start:
+                                    path_parts.append(field)
+                            if path_parts:
+                                attempted_paths.append(','.join(path_parts))
                         else:
                             self.logger.warning('Malformed row in CSV file. Skipping.')
                 except StopIteration:
+                    # Empty file, no rows to process
                     pass
         return attempted_paths
 class ADBHandler(PathHandler):
@@ -70,6 +102,8 @@ class ADBHandler(PathHandler):
         self.timeout = self.config.adb_timeout
         self.total_paths = self.config.total_paths
         self.current_path_number = 0  # Track current path number
+        # Create single LogHandler instance for reuse
+        self.log_handler = LogHandler()
         subprocess.run(["adb", "start-server"], check=True)
     
     # Credit to https://github.com/timvisee/apbf
@@ -106,13 +140,13 @@ class ADBHandler(PathHandler):
         stdout_replaced = stdout.replace('\n', '\\n')
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        log_handler = LogHandler()
-        log_handler.handle_path(timestamp, path, result, stdout_replaced)
+        # Use the reusable log handler instance
+        self.log_handler.handle_path(timestamp, path, result, stdout_replaced)
 
-        if status == 0 and stderr == '' and self.stdout_success in stdout:
+        if status == 0 and stderr == '' and str(self.stdout_success) in stdout:
             return (True, path)
 
-        if status == 0 and stderr == "" and self.stdout_normal in stdout:
+        if status == 0 and stderr == "" and str(self.stdout_normal) in stdout:
             i = 0.1
             time_remaining = self.attempt_delay/1000
             while i <= time_remaining:

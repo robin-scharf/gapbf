@@ -3,6 +3,14 @@ import sys
 from Config import Config
 from PathFinder import PathFinder
 from PathHandler import ADBHandler, PrintHandler, TestHandler, LogHandler
+from Logging import get_logger, add_file_handler
+
+# Define handler_classes at module level so it's available to validate_mode
+handler_classes = {
+    'a': {'class': ADBHandler, 'help': 'Attempt decryption via ADB shell on Android device (includes logging)'},
+    'p': {'class': PrintHandler, 'help': 'Print attempted path to console'},
+    't': {'class': TestHandler, 'help': 'Run mock brute force against test_path in config'},
+}
 
 config = Config.load_config('config.yaml')
 path_finder = PathFinder(config.grid_size, config.path_min_length, config.path_max_length,
@@ -20,12 +28,6 @@ def validate_mode(value):
 if __name__ == "__main__":    
     parser = argparse.ArgumentParser(
         description='Please configure applicable handlers. Example: python3 main.py -m ap -l w')
-    
-    handler_classes = {
-        'a': {'class': ADBHandler, 'help': 'Attempt decryption via ADB shell on Android device (includes logging)'},
-        'p': {'class': PrintHandler, 'help': 'Print attempted path to console'},
-        't': {'class': TestHandler, 'help': 'Run mock brute force against test_path in config'},
-    }
 
     mode_help = "Select modes: "
     for arg, handler_info in handler_classes.items():
@@ -43,6 +45,16 @@ if __name__ == "__main__":
         valid_modes = ', '.join(handler_classes.keys())
         sys.exit(1)
 
+    # Set up logging based on arguments
+    logger = get_logger('main', args.logging)
+    
+    # Set up file logging if requested
+    if args.file:
+        add_file_handler(logger, config.process_log_file_path)
+        logger.info(f"File logging enabled to: {config.process_log_file_path}")
+
+    logger.info(f"Starting GAPBF with modes: {args.mode}, logging level: {args.logging}")
+
     modes = args.mode
 
     for mode in modes:
@@ -50,6 +62,11 @@ if __name__ == "__main__":
             handler_info = handler_classes[mode]
             handler_class = handler_info['class']
             handler = handler_class()
+            
+            # Set up file logging for handlers if requested
+            if args.file and hasattr(handler, 'logger'):
+                add_file_handler(handler.logger, config.process_log_file_path)
+                
             path_finder.add_handler(handler)
         else:
             print(
