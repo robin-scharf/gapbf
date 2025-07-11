@@ -17,12 +17,40 @@ class PathHandler(ABC):
     """
     
     @abstractmethod
-    def handle_path(self, path) -> bool:
+    def handle_path(self, path, total_paths=None) -> Tuple[bool, Optional[List]]:
         pass
     
     def __init__(self):
         self.config = Config.load_config('config.yaml')
         self.logger = logging.getLogger('main')
+    
+    def get_attempted_paths(self):
+        """
+        Retrieve paths that have already been attempted.
+        """
+        attempted_paths = []
+        paths_log_file_path = self.config.paths_log_file_path
+        if not os.path.isfile(paths_log_file_path):
+            self.logger.debug(f"Creating paths log file at {paths_log_file_path}")
+            with open(paths_log_file_path, 'w', newline='') as f:
+                writer = csv.writer(f)
+                writer.writerow(['timestamp', 'path', 'result'])
+        else:
+            self.logger.debug(f"Found existing paths log file at {paths_log_file_path}")
+            with open(paths_log_file_path, newline='') as f:
+                reader = csv.reader(f)
+                if csv.Sniffer().has_header(f.read(1024)):
+                    f.seek(0) 
+                    next(reader) 
+                try:
+                    for row in reader:
+                        if len(row) >= 2:
+                            attempted_paths.append(row[1])
+                        else:
+                            self.logger.warning('Malformed row in CSV file. Skipping.')
+                except StopIteration:
+                    pass
+        return attempted_paths
 class ADBHandler(PathHandler):
     """
     Handles paths using ADB for decryption.
@@ -41,45 +69,25 @@ class ADBHandler(PathHandler):
         self.attempted_paths = self.get_attempted_paths()
         self.timeout = self.config.adb_timeout
         self.total_paths = self.config.total_paths
+        self.current_path_number = 0  # Track current path number
         subprocess.run(["adb", "start-server"], check=True)
     
-    def get_attempted_paths(self):
-        """
-        Retrieve paths that have already been attempted.
-        """
-        attempted_paths = []
-        if not os.path.isfile(self.paths_log_file_path):
-            self.logger.debug(f"Creating paths log file at {self.paths_log_file_path}")
-            with open(self.paths_log_file_path, 'w', newline='') as f:
-                writer = csv.writer(f)
-                writer.writerow(['timestamp', 'path', 'result'])
-        else:
-            self.logger.debug(f"Found existing paths log file at {self.paths_log_file_path}")
-            with open(self.paths_log_file_path, newline='') as f:
-                reader = csv.reader(f)
-                if csv.Sniffer().has_header(f.read(1024)):
-                    f.seek(0) 
-                    next(reader) 
-                try:
-                    for row in reader:
-                        if len(row) >= 2:
-                            attempted_paths.append(row[1])
-                        else:
-                            self.logger.warning('Malformed row in CSV file. Skipping.')
-                except StopIteration:
-                    self.logger.warning('No attempted paths found in CSV file')
-            if not attempted_paths:
-                self.logger.warning('No attempted paths found in CSV file')
-        return tuple(attempted_paths)
-    
     # Credit to https://github.com/timvisee/apbf
-    def handle_path(self, path, total_paths) -> (bool, Optional[str]):
-        """
-        Attempts to decrypt using the given path.
-        """
-        if path in self.attempted_paths:
+    def handle_path(self, path, total_paths=None) -> Tuple[bool, Optional[List]]:
+        self.current_path_number += 1  # Increment path counter
+        
+        # Convert path to string format that matches CSV storage
+        path_str = str(path)
+        if path_str in self.attempted_paths:
+            # Calculate percentage for skipped path too
+            percentage = (self.current_path_number / total_paths * 100) if total_paths else 0
+            print(f"Path {self.current_path_number} of {total_paths} ({percentage:.1f}%): {path} already attempted. Skipping.")
             self.logger.info(f"Skipping path {path} because it was already tried.")
-            return False
+            return False, None
+        
+        # Calculate percentage
+        percentage = (self.current_path_number / total_paths * 100) if total_paths else 0
+        
         self.logger.info(f"Trying path: {path} with length {len(path)}")
         formatted_path = ''.join(map(str, path))
         command = ["adb", "shell", "twrp", "decrypt", formatted_path]
@@ -110,8 +118,12 @@ class ADBHandler(PathHandler):
             while i <= time_remaining:
                 time.sleep(i)
                 time_remaining = time_remaining - i
-                sys.stdout.write(
-                    f'\rPath {path} of {total_paths} was not successful. Continuing in {time_remaining:.1f} seconds...')
+                if total_paths:
+                    sys.stdout.write(
+                        f'\rPath {self.current_path_number} of {total_paths} ({percentage:.1f}%): {path} was not successful. Continuing in {time_remaining:.1f} seconds...')
+                else:
+                    sys.stdout.write(
+                        f'\rPath {self.current_path_number}: {path} was not successful. Continuing in {time_remaining:.1f} seconds...')
                 sys.stdout.flush()
             sys.stdout.write('\n')
             return (False, None)
@@ -121,16 +133,18 @@ class ADBHandler(PathHandler):
             sys.exit(1)
 
         return (False, None)
-        # sys.exit(1)
 
 class TestHandler(PathHandler):
     """
     Test handler for paths mocking decrypting against a known path.
+    Pure testing - does not read from or write to CSV logs.
     """
 
     def __init__(self):
         super().__init__()
         self.test_path = self.config.test_path
+        self.current_path_number = 0  # Track current path number
+        # Note: TestHandler does NOT load attempted paths - it's for pure testing
         print(f"[TEST] [CONFIGURATION] Grid size is {self.config.grid_size}")
         print(
             f"[TEST] [CONFIGURATION] Path max node distance is {self.config.path_max_node_distance}")
@@ -144,12 +158,17 @@ class TestHandler(PathHandler):
         print(
             f"[TEST] [CONFIGURATION] Test path length is {len(self.test_path)}")
 
-    def handle_path(self, path) -> Tuple[bool, List]:
+    def handle_path(self, path, total_paths=None) -> Tuple[bool, Optional[List]]:
+        self.current_path_number += 1  # Increment path counter
+        
+        # Calculate percentage
+        percentage = (self.current_path_number / total_paths * 100) if total_paths else 0
+        
         if path == self.test_path:
-            print(f"\n[TEST] Success! Here is the output for the decryption attempt: {path}")
+            print(f"\n[TEST] Success! Path {self.current_path_number} of {total_paths} ({percentage:.1f}%): {path}")
             return True, path
         else:
-            print(f"[TEST] Testing path {path} against {self.test_path} was not successful.")
+            print(f"[TEST] Path {self.current_path_number} of {total_paths} ({percentage:.1f}%): {path} was not successful.")
             return False, None
 
 class PrintHandler(PathHandler):
@@ -161,7 +180,7 @@ class PrintHandler(PathHandler):
         super().__init__()
         self.grid_size = self.config.grid_size
     
-    def handle_path(self, path) -> bool:
+    def handle_path(self, path, total_paths=None) -> Tuple[bool, Optional[List]]:
         path_rows = self.render_path(path)
         steps_rows = self.render_path_steps(path)
         print(f"[PRINT] Current path {path}")
@@ -173,12 +192,24 @@ class PrintHandler(PathHandler):
     def render_path(self, path):
         rows = []
         grid_size = self.grid_size
-        slug = "-".join(str(p) for p in path)
+        
+        # Get the proper grid mapping for the current grid size
+        from PathFinder import PathFinder
+        grid_data = PathFinder._graphs.get(grid_size, {})
+        grid_nodes = grid_data.get("graph", [])
+        
+        # Create a mapping from grid position to node value
+        node_positions = {}
+        for i, node in enumerate(grid_nodes):
+            row = i // grid_size
+            col = i % grid_size
+            node_positions[(row, col)] = node
 
         for y in range(grid_size):
             row = []
             for x in range(grid_size):
-                if y * grid_size + x + 1 in path:
+                node_value = node_positions.get((y, x))
+                if node_value in path:
                     row.append("●")
                 else:
                     row.append("○")
@@ -188,12 +219,25 @@ class PrintHandler(PathHandler):
     def render_path_steps(self, path):
         rows = []
         grid_size = self.grid_size
+        
+        # Get the proper grid mapping for the current grid size
+        from PathFinder import PathFinder
+        grid_data = PathFinder._graphs.get(grid_size, {})
+        grid_nodes = grid_data.get("graph", [])
+        
+        # Create a mapping from grid position to node value
+        node_positions = {}
+        for i, node in enumerate(grid_nodes):
+            row = i // grid_size
+            col = i % grid_size
+            node_positions[(row, col)] = node
+
         for y in range(grid_size):
             row = []
             for x in range(grid_size):
-                value = y * grid_size + x + 1
-                if value in path:
-                    row.append(f"{path.index(value) + 1}")
+                node_value = node_positions.get((y, x))
+                if node_value in path:
+                    row.append(f"{path.index(node_value) + 1}")
                 else:
                     row.append("·")
             rows.append(" ".join(row))

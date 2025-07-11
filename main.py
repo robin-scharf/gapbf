@@ -2,7 +2,7 @@ import argparse
 import sys
 from Config import Config
 from PathFinder import PathFinder
-from PathHandler import ADBHandler, PrintHandler, TestHandler  # , LogHandler
+from PathHandler import ADBHandler, PrintHandler, TestHandler, LogHandler
 
 config = Config.load_config('config.yaml')
 path_finder = PathFinder(config.grid_size, config.path_min_length, config.path_max_length,
@@ -22,7 +22,7 @@ if __name__ == "__main__":
         description='Please configure applicable handlers. Example: python3 main.py -m ap -l w')
     
     handler_classes = {
-        'a': {'class': ADBHandler, 'help': 'Attempt decryption via ADB shell on Android device'},
+        'a': {'class': ADBHandler, 'help': 'Attempt decryption via ADB shell on Android device (includes logging)'},
         'p': {'class': PrintHandler, 'help': 'Print attempted path to console'},
         't': {'class': TestHandler, 'help': 'Run mock brute force against test_path in config'},
     }

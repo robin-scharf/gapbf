@@ -1,0 +1,21 @@
+adb_timeout: 30
+attempt_delay: 10100
+excluded_nodes: []
+grid_size: 4
+outputstrings:
+  stdout_error: ''
+  stdout_normal: Failed to decrypt
+  stdout_success: Data successfully decrypted
+path_max_length: 5
+path_max_node_distance: 1
+path_min_length: 5
+path_prefix: []
+path_suffix: []
+paths_log_file_path: ./paths_log.csv
+process_log_file_path: ./process_log.csv
+test_path:
+  - 1
+  - 4
+  - 5
+  - 6
+total_paths: 0

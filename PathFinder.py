@@ -150,16 +150,15 @@ class PathFinder:
         
     def process_path(self, path):
         for handler in self.handlers:
-            success, _path = handler.handle_path(
-                path, self.total_paths)
-            if not success:
-                return False, None
-            return True, _path
+            success, _path = handler.handle_path(path, self.total_paths)
+            if success:
+                return True, _path
+        return False, None
     
     def _calculate_total_paths(self) -> int:
         visited = set(self._path_prefix)
         if self._path_suffix:
-            path_suffix = set(map(int, self._path_suffix))
+            path_suffix = set(self._path_suffix)  # Keep original types
         else:
             path_suffix = set()
 
@@ -185,8 +184,7 @@ class PathFinder:
 
         if not self._path_prefix:
             for node in self._graph:
-                if node not in visited:
-                    dfs_counter(node, self._path_prefix)
+                dfs_counter(node, [])  # Fixed: was passing self._path_prefix
         else:
             dfs_counter(self._path_prefix[-1], self._path_prefix[:-1])
 
@@ -204,35 +202,9 @@ class PathFinder:
     def dfs(self) -> Tuple[bool, List]:
         visited = set(self._path_prefix)
         if self._path_suffix:
-            path_suffix = set(map(int, self._path_suffix)) 
+            path_suffix = set(self._path_suffix)  # Don't convert to int, keep original types
         else:
             path_suffix = set()
-
-        def calculate_node_distance(graph, node1, node2):
-            distances = {}
-            for node in graph:
-                distances[node] = float('inf')
-            distances[node1] = 0
-            queue = [node1]
-
-            while queue:
-                current_node = queue.pop(0)
-
-                if current_node == node2:
-                    return distances[current_node]
-
-                for neighbor in graph[current_node]:
-                    distance = len(graph) - graph[current_node].index(neighbor)
-
-                    if distance not in distances:
-                        distances[distance] = float('inf')
-
-                    if distances[distance] > distances[current_node] + 1:
-                        distances[distance] = distances[current_node] + 1
-
-                    queue.append(neighbor)
-
-            return distance
 
         def dfs_helper(node: Union[int, str], path: List[Union[int, str]]) -> Tuple[bool, List]:
             path = list(path)
@@ -241,16 +213,13 @@ class PathFinder:
 
             if len(path) >= self._path_min_len:
                 if path[-1] in path_suffix or not path_suffix:
-                    success, _path = self.process_path(
-                        path)
+                    success, _path = self.process_path(path)
                     if success:
                         return (success, _path)
 
             if len(path) < self._path_max_len:
                 for neighbor in self._neighbors[str(node)]:
                     if neighbor not in self._excluded_nodes and neighbor not in visited:
-                        # distance = calculate_node_distance(node, neighbor)
-                        # if distance <= self._path_max_node_distance:
                         success, _path = dfs_helper(neighbor, path)
                         if success:
                             return (success, _path)
@@ -264,8 +233,6 @@ class PathFinder:
             for node in self._graph:
                 success, _path = dfs_helper(node, [])
                 if success:
-                    print(
-                        f"dfs_helper if block on self._path_prefix returning success {success} and path {_path}")
                     return (success, _path)
         else:
             success, _path = dfs_helper(

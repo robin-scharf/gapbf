@@ -85,7 +85,7 @@ class Config:
         loaded_config = cls(
             config_file_path=str(config_file_path),
             grid_size=int(config_data.get('grid_size', 0)),
-            path_min_length=int(config_data.get('path_min_length', 0)),
+            path_min_length=int(config_data.get('path_min_length', 4)),  # Default to 4 (Android minimum)
             path_max_length=int(config_data.get('path_max_length', 0)),
             path_max_node_distance=int(
                 config_data.get('path_max_node_distance', 1)),
