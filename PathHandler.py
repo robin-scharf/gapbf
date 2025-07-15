@@ -28,7 +28,7 @@ class PathHandler(ABC):
         """
         Retrieve paths that have already been attempted.
         """
-        attempted_paths = []
+        attempted_paths = set()
         paths_log_file_path = self.config.paths_log_file_path
         if not os.path.isfile(paths_log_file_path):
             self.logger.debug(f"Creating paths log file at {paths_log_file_path}")
@@ -39,44 +39,18 @@ class PathHandler(ABC):
             self.logger.debug(f"Found existing paths log file at {paths_log_file_path}")
             with open(paths_log_file_path, newline='') as f:
                 reader = csv.reader(f)
-                # Read first row to check if it's a header
+                # Skip header row if it exists
                 try:
                     first_row = next(reader, None)
                     if first_row and first_row[0] != 'timestamp':
                         # Not a header, process this row
                         if len(first_row) >= 2:
-                            # Reconstruct path from CSV fields - join fields that form the path
-                            path_parts = []
-                            found_start = False
-                            for i, field in enumerate(first_row[1:], 1):  # Skip timestamp
-                                if field.startswith('['):
-                                    found_start = True
-                                    path_parts.append(field)
-                                elif found_start and field.endswith(']'):
-                                    path_parts.append(field)
-                                    break
-                                elif found_start:
-                                    path_parts.append(field)
-                            if path_parts:
-                                attempted_paths.append(','.join(path_parts))
+                            attempted_paths.add(first_row[1])  # Path is in column 1
                     
                     # Process remaining rows
                     for row in reader:
                         if len(row) >= 2:
-                            # Reconstruct path from CSV fields
-                            path_parts = []
-                            found_start = False
-                            for i, field in enumerate(row[1:], 1):  # Skip timestamp
-                                if field.startswith('['):
-                                    found_start = True
-                                    path_parts.append(field)
-                                elif found_start and field.endswith(']'):
-                                    path_parts.append(field)
-                                    break
-                                elif found_start:
-                                    path_parts.append(field)
-                            if path_parts:
-                                attempted_paths.append(','.join(path_parts))
+                            attempted_paths.add(row[1])  # Path is in column 1
                         else:
                             self.logger.warning('Malformed row in CSV file. Skipping.')
                 except StopIteration:
@@ -124,7 +98,14 @@ class ADBHandler(PathHandler):
         
         self.logger.info(f"Trying path: {path} with length {len(path)}")
         formatted_path = ''.join(map(str, path))
-        command = ["adb", "shell", "twrp", "decrypt", formatted_path]
+        
+        # Run the decrypt command with optional echo for visibility
+        if self.config.echo_commands:
+            # Combine echo and decrypt commands for better visibility
+            command = ["adb", "shell", f"echo '[GAPBF] Attempting decrypt: {formatted_path}' && twrp decrypt {formatted_path}"]
+        else:
+            command = ["adb", "shell", "twrp", "decrypt", formatted_path]
+        
         try:
             result = subprocess.run(command, capture_output=True, text=True, timeout=self.timeout)
         except subprocess.TimeoutExpired as e:

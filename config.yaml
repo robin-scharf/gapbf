@@ -1,12 +1,13 @@
 adb_timeout: 30
-attempt_delay: 10100
+attempt_delay: 500
+echo_commands: true
 excluded_nodes: []
-grid_size: 3
+grid_size: 4
 outputstrings:
   stdout_error: ''
   stdout_normal: Failed to decrypt
   stdout_success: Data successfully decrypted
-path_max_length: 9
+path_max_length: 16
 path_max_node_distance: 1
 path_min_length: 4
 path_prefix: []
@@ -19,4 +20,4 @@ test_path:
 - 3
 - 4
 - 5
-total_paths: 2
+total_paths: 12029132

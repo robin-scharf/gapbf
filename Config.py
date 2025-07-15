@@ -21,6 +21,7 @@ class Config:
     process_log_file_path: str = ''
     adb_timeout: int = 30
     total_paths: int = 0
+    echo_commands: bool = True
 
     def __post_init__(self):
         if not isinstance(self.config_file_path, str):
@@ -71,6 +72,9 @@ class Config:
         if not isinstance(self.adb_timeout, int):
             raise TypeError(
                 f"adb_timeout must be an integer, got {type(self.adb_timeout).__name__}")
+        if not isinstance(self.echo_commands, bool):
+            raise TypeError(
+                f"echo_commands must be a boolean, got {type(self.echo_commands).__name__}")
 
     @classmethod
     def load_config(cls, config_file_path: str) -> 'Config':
@@ -105,7 +109,8 @@ class Config:
             process_log_file_path=str(
                 config_data.get('process_log_file_path', '')),
             adb_timeout=int(config_data.get('adb_timeout', 30)),
-            total_paths=int(config_data.get('total_paths', 0))
+            total_paths=int(config_data.get('total_paths', 0)),
+            echo_commands=bool(config_data.get('echo_commands', True))
         )
         return loaded_config
 
