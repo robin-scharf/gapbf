@@ -25,7 +25,8 @@ def validate_mode(value):
             f"Invalid mode: {value}. Allowed values are combinations of {available_options}.")
     return value
 
-if __name__ == "__main__":    
+
+def main():
     parser = argparse.ArgumentParser(
         description='Please configure applicable handlers. Example: python3 main.py -m ap -l w')
 
@@ -82,3 +83,7 @@ if __name__ == "__main__":
         print(f"Reached end of paths to try. Check path_logs.csv for more information. Exiting.")
     else:
         print(f"Success! The path is: {successful_path}")
+
+
+if __name__ == "__main__":
+    main()
