@@ -2,7 +2,7 @@
 
 # Quick test script to verify path skipping works
 
-from PathHandler import ADBHandler
+from gapbf.PathHandler import ADBHandler
 
 def test_path_skipping():
     print("Creating ADB handler...")

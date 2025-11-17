@@ -3,7 +3,7 @@ import yaml
 import tempfile
 import os
 from unittest.mock import patch, mock_open
-from Config import Config
+from gapbf.Config import Config
 
 
 class TestConfig:
@@ -17,11 +17,11 @@ class TestConfig:
             path_min_length=4,
             path_max_length=9,
             path_max_node_distance=1,
-            path_prefix=[1, 2],
-            path_suffix=[8, 9],
-            excluded_nodes=[5],
+            path_prefix=['1', '2'],
+            path_suffix=['8', '9'],
+            excluded_nodes=['5'],
             attempt_delay=10.5,
-            test_path=[1, 2, 3],
+            test_path=['1', '2', '3'],
             stdout_normal='Failed',
             stdout_success='Success',
             stdout_error='Error',
@@ -38,26 +38,30 @@ class TestConfig:
         assert config.total_paths == 100
 
     def test_config_post_init_type_validation(self):
-        """Test that __post_init__ validates types correctly."""
+        """Test that Pydantic validates types correctly."""
+        from pydantic import ValidationError
+        
         # Test invalid grid_size type
-        with pytest.raises(TypeError, match="grid_size must be an integer"):
+        with pytest.raises(ValidationError, match="grid_size"):
             Config(grid_size="invalid")
         
         # Test invalid path_min_length type
-        with pytest.raises(TypeError, match="path_min_length must be an integer"):
+        with pytest.raises(ValidationError, match="path_min_length"):
             Config(path_min_length="invalid")
         
         # Test invalid path_max_length type
-        with pytest.raises(TypeError, match="path_max_length must be an integer"):
+        with pytest.raises(ValidationError, match="path_max_length"):
             Config(path_max_length="invalid")
         
-        # Test invalid attempt_delay type
-        with pytest.raises(TypeError, match="attempt_delay must be a float"):
-            Config(attempt_delay="invalid")
+        # Test invalid attempt_delay type - Pydantic will auto-convert strings to floats if possible
+        # So we need a truly invalid value
+        with pytest.raises(ValidationError, match="attempt_delay"):
+            Config(attempt_delay="not_a_number")
         
-        # Test invalid path_prefix items
-        with pytest.raises(TypeError, match="All items in path_prefix must be either integer or string"):
-            Config(path_prefix=[1, 2.5, 3])
+        # Test invalid path_prefix items - Pydantic will auto-convert to strings
+        # so this will actually succeed, but test that non-list fails
+        with pytest.raises(ValidationError, match="path_prefix"):
+            Config(path_prefix="not_a_list")
 
     def test_load_config_success(self):
         """Test successful config loading from YAML file."""
@@ -87,9 +91,9 @@ total_paths: 100
             assert config.grid_size == 3
             assert config.path_min_length == 4
             assert config.path_max_length == 9
-            assert config.path_prefix == [1, 2]
-            assert config.path_suffix == [8, 9]
-            assert config.excluded_nodes == [5]
+            assert config.path_prefix == ['1', '2']  # Nodes stored as strings
+            assert config.path_suffix == ['8', '9']  # Nodes stored as strings
+            assert config.excluded_nodes == ['5']    # Nodes stored as strings
             assert config.attempt_delay == 10.5
             assert config.stdout_normal == "Failed to decrypt"
             assert config.stdout_success == "Data successfully decrypted"
@@ -104,7 +108,7 @@ total_paths: 100
         invalid_yaml = "invalid: yaml: content: ["
         
         with patch('builtins.open', mock_open(read_data=invalid_yaml)):
-            with pytest.raises(ValueError, match="Invalid YAML format"):
+            with pytest.raises(ValueError, match="Invalid YAML"):
                 Config.load_config('test.yaml')
 
     def test_load_config_with_defaults(self):
@@ -118,7 +122,7 @@ grid_size: 4
             
             assert config.grid_size == 4
             assert config.path_min_length == 4  # Default value
-            assert config.path_max_length == 0  # Default value
+            assert config.path_max_length == 9  # Default from load_config
             assert config.path_prefix == []     # Default value
             assert config.attempt_delay == 0.0  # Default value
 

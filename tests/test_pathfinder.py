@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import Mock, patch, mock_open
-from PathFinder import PathFinder
-from PathHandler import PathHandler
+from gapbf.PathFinder import PathFinder
+from gapbf.PathHandler import PathHandler
 
 
 class MockHandler(PathHandler):
@@ -36,8 +36,8 @@ class TestPathFinder:
         assert pf._path_min_len == 4
         assert pf._path_max_len == 9
         assert len(pf._graph) == 9  # 3x3 grid has 9 nodes
-        assert 1 in pf._graph
-        assert 9 in pf._graph
+        assert '1' in pf._graph
+        assert '9' in pf._graph
 
     def test_init_4x4_grid(self):
         """Test PathFinder initialization with 4x4 grid."""
@@ -103,7 +103,7 @@ class TestPathFinder:
             path_prefix=[1, 2]
         )
         
-        assert pf._path_prefix == (1, 2)
+        assert pf._path_prefix == ['1', '2']
 
     def test_constraints_path_suffix(self):
         """Test PathFinder respects path suffix constraint."""
@@ -114,7 +114,7 @@ class TestPathFinder:
             path_suffix=[8, 9]
         )
         
-        assert pf._path_suffix == (8, 9)
+        assert pf._path_suffix == ['8', '9']
 
     def test_constraints_excluded_nodes(self):
         """Test PathFinder respects excluded nodes constraint."""
@@ -125,14 +125,12 @@ class TestPathFinder:
             excluded_nodes=[5, 6]
         )
         
-        assert pf._excluded_nodes == {5, 6}
+        assert pf._excluded_nodes == {'5', '6'}
 
-    @patch('builtins.open', mock_open())
-    @patch('yaml.safe_load')
-    @patch('yaml.safe_dump')
-    def test_calculate_total_paths_updates_config(self, mock_dump, mock_load):
-        """Test that _calculate_total_paths updates config file."""
-        mock_load.return_value = {'grid_size': 3, 'total_paths': 0}
+    def test_calculate_total_paths_updates_config(self):
+        """Test that _calculate_total_paths correctly calculates path count."""
+        # Note: PathFinder no longer automatically writes to config.yaml
+        # This is now handled by main.py which updates the Config object
         
         pf = PathFinder(
             grid_size=3,
@@ -145,12 +143,10 @@ class TestPathFinder:
         
         total_paths = pf._calculate_total_paths()
         
-        # Verify config file was updated
-        mock_dump.assert_called_once()
-        args, kwargs = mock_dump.call_args
-        updated_config = args[0]
-        assert 'total_paths' in updated_config
-        assert updated_config['total_paths'] == total_paths
+        # Verify path count is calculated correctly
+        assert total_paths > 0
+        assert pf.total_paths == total_paths
+        assert isinstance(total_paths, int)
 
     def test_calculate_total_paths_no_valid_paths(self):
         """Test _calculate_total_paths raises error when no valid paths exist."""
@@ -163,7 +159,7 @@ class TestPathFinder:
             excluded_nodes=[]
         )
         
-        with pytest.raises(ValueError, match="No paths found with the given configuration"):
+        with pytest.raises(ValueError, match="No paths found with given configuration"):
             pf._calculate_total_paths()
 
     def test_dfs_with_successful_path(self):
@@ -179,7 +175,7 @@ class TestPathFinder:
         
         # Mock handler that succeeds on specific path
         def mock_handler_success(path, total_paths=None):
-            if len(path) == 4 and path[0] == 1:
+            if len(path) == 4 and path[0] == '1':  # Nodes are strings
                 return (True, path)
             return (False, None)
         
@@ -227,11 +223,11 @@ class TestPathFinder:
         # Run DFS (will fail but we check the paths attempted)
         pf.dfs()
         
-        # All attempted paths should start with [1, 2]
+        # All attempted paths should start with ['1', '2']
         for attempted_path in handler.called_paths:
             if len(attempted_path) >= 2:
-                assert attempted_path[0] == 1
-                assert attempted_path[1] == 2
+                assert attempted_path[0] == '1'
+                assert attempted_path[1] == '2'
 
     def test_dfs_with_excluded_nodes(self):
         """Test DFS search respects excluded nodes."""
@@ -259,10 +255,10 @@ class TestPathFinder:
         pf = PathFinder(grid_size=3, path_min_len=4, path_max_len=9)
         
         # Test some known neighbor relationships for 3x3 grid
-        # Note: neighbors are stored as integers, not strings
-        assert 2 in pf._neighbors['1']  # 1 connects to 2
-        assert 4 in pf._neighbors['1']  # 1 connects to 4
-        assert 5 in pf._neighbors['1']  # 1 connects to 5 (diagonal)
+        # Neighbors are stored as strings now
+        assert '2' in pf._neighbors['1']  # 1 connects to 2
+        assert '4' in pf._neighbors['1']  # 1 connects to 4
+        assert '5' in pf._neighbors['1']  # 1 connects to 5 (diagonal)
         
         # Center node (5) should connect to all others
         assert len(pf._neighbors['5']) == 8
@@ -310,11 +306,11 @@ class TestPathFinderIntegration:
         # Verify all paths meet constraints
         for path in handler.called_paths:
             assert len(path) == 4
-            assert path[0] == 1
-            assert path[-1] == 9
-            assert 5 not in path
+            assert path[0] == '1'
+            assert path[-1] == '9'
+            assert '5' not in path
 
-    @patch('PathFinder.yaml')
+    @patch('gapbf.PathFinder.yaml')
     @patch('builtins.open', mock_open())
     def test_total_paths_calculation_accuracy(self, mock_yaml):
         """Test that total paths calculation is accurate."""

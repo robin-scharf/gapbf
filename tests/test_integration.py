@@ -3,9 +3,9 @@ import tempfile
 import os
 import yaml
 from unittest.mock import patch, Mock
-from Config import Config
-from PathFinder import PathFinder
-from PathHandler import ADBHandler, TestHandler, PrintHandler
+from gapbf.Config import Config
+from gapbf.PathFinder import PathFinder
+from gapbf.PathHandler import ADBHandler, TestHandler, PrintHandler
 
 
 class TestFullIntegration:
@@ -58,9 +58,9 @@ class TestFullIntegration:
             assert pf._grid_size == 3
             assert pf._path_min_len == 4
             assert pf._path_max_len == 6
-            assert pf._path_prefix == (1, 2)
-            assert pf._path_suffix == (8, 9)
-            assert pf._excluded_nodes == {5}
+            assert pf._path_prefix == ['1', '2']  # Nodes are strings
+            assert pf._path_suffix == ['8', '9']  # Nodes are strings
+            assert pf._excluded_nodes == {'5'}    # Nodes are strings
             
         finally:
             os.unlink(config_file)
@@ -88,7 +88,7 @@ class TestFullIntegration:
             config_file = f.name
         
         try:
-            with patch('PathHandler.Config.load_config') as mock_load:
+            with patch('gapbf.PathHandler.Config.load_config') as mock_load:
                 mock_config = Config.load_config(config_file)
                 mock_load.return_value = mock_config
                 
@@ -103,7 +103,7 @@ class TestFullIntegration:
                 )
                 
                 # Add TestHandler
-                test_handler = TestHandler()
+                test_handler = TestHandler(mock_config)
                 pf.add_handler(test_handler)
                 
                 # Run DFS - should find the test path
@@ -140,7 +140,7 @@ class TestFullIntegration:
             config_file = f.name
         
         try:
-            with patch('PathHandler.Config.load_config') as mock_load:
+            with patch('gapbf.PathHandler.Config.load_config') as mock_load:
                 mock_config = Config.load_config(config_file)
                 mock_load.return_value = mock_config
                 
@@ -207,7 +207,7 @@ class TestFullIntegration:
             config_file = f.name
         
         try:
-            with patch('PathHandler.Config.load_config') as mock_load:
+            with patch('gapbf.PathHandler.Config.load_config') as mock_load:
                 mock_config = Config.load_config(config_file)
                 mock_load.return_value = mock_config
                 
@@ -222,7 +222,7 @@ class TestFullIntegration:
                 
                 # Add handlers in order: Print (always fails), Test (succeeds for correct path)
                 print_handler = PrintHandler()
-                test_handler = TestHandler()
+                test_handler = TestHandler(mock_config)
                 
                 pf.add_handler(print_handler)
                 pf.add_handler(test_handler)
@@ -256,7 +256,7 @@ class TestFullIntegration:
             config_file = f.name
         
         try:
-            with patch('PathHandler.Config.load_config') as mock_load:
+            with patch('gapbf.PathHandler.Config.load_config') as mock_load:
                 mock_config = Config.load_config(config_file)
                 mock_load.return_value = mock_config
                 
@@ -321,7 +321,7 @@ class TestErrorHandling:
             excluded_nodes=[]
         )
         
-        with pytest.raises(ValueError, match="No paths found with the given configuration"):
+        with pytest.raises(ValueError, match="No paths found with given configuration"):
             pf._calculate_total_paths()
 
     @patch('subprocess.run')
@@ -342,7 +342,7 @@ class TestErrorHandling:
             config_file = f.name
         
         try:
-            with patch('PathHandler.Config.load_config') as mock_load:
+            with patch('gapbf.PathHandler.Config.load_config') as mock_load:
                 mock_config = Config.load_config(config_file)
                 mock_load.return_value = mock_config
                 

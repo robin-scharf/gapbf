@@ -5,13 +5,13 @@ import tempfile
 import subprocess
 from unittest.mock import Mock, patch, mock_open, MagicMock
 from datetime import datetime
-from PathHandler import PathHandler, ADBHandler, TestHandler, PrintHandler, LogHandler
+from gapbf.PathHandler import PathHandler, ADBHandler, TestHandler, PrintHandler, LogHandler
 
 
 class TestPathHandlerBase:
     """Tests for the abstract PathHandler base class."""
     
-    @patch('PathHandler.Config.load_config')
+    @patch('gapbf.PathHandler.Config.load_config')
     def test_pathhandler_init(self, mock_load_config):
         """Test PathHandler initialization loads config."""
         mock_config = Mock()
@@ -26,7 +26,7 @@ class TestPathHandlerBase:
         assert handler.config == mock_config
         mock_load_config.assert_called_once_with('config.yaml')
 
-    @patch('PathHandler.Config.load_config')
+    @patch('gapbf.PathHandler.Config.load_config')
     def test_get_attempted_paths_creates_file(self, mock_load_config):
         """Test get_attempted_paths creates CSV file if it doesn't exist."""
         mock_config = Mock()
@@ -47,7 +47,7 @@ class TestPathHandlerBase:
             mock_file.assert_called()
             assert paths == []
 
-    @patch('PathHandler.Config.load_config')
+    @patch('gapbf.PathHandler.Config.load_config')
     def test_get_attempted_paths_reads_existing_file(self, mock_load_config):
         """Test get_attempted_paths reads from existing CSV file."""
         mock_config = Mock()
@@ -74,7 +74,7 @@ class TestPathHandlerBase:
 class TestADBHandler:
     """Tests for the ADBHandler class."""
     
-    @patch('PathHandler.Config.load_config')
+    @patch('gapbf.PathHandler.Config.load_config')
     @patch('subprocess.run')
     def test_adbhandler_init_starts_adb_server(self, mock_subprocess, mock_load_config):
         """Test ADBHandler initialization starts ADB server."""
@@ -89,13 +89,13 @@ class TestADBHandler:
         mock_load_config.return_value = mock_config
         
         with patch.object(ADBHandler, 'get_attempted_paths', return_value=[]):
-            handler = ADBHandler()
+            handler = ADBHandler(mock_config)
             
             # Should start ADB server
             mock_subprocess.assert_called_once_with(["adb", "start-server"], check=True)
             assert handler.current_path_number == 0
 
-    @patch('PathHandler.Config.load_config')
+    @patch('gapbf.PathHandler.Config.load_config')
     @patch('subprocess.run')
     def test_handle_path_skips_attempted_path(self, mock_subprocess, mock_load_config):
         """Test handle_path skips already attempted paths."""
@@ -110,17 +110,17 @@ class TestADBHandler:
         mock_load_config.return_value = mock_config
         
         with patch.object(ADBHandler, 'get_attempted_paths', return_value=['[1, 2, 3]']):
-            handler = ADBHandler()
+            handler = ADBHandler(mock_config)
             
-            success, path = handler.handle_path([1, 2, 3], total_paths=100)
+            success, path = handler.handle_path(['1', '2', '3'], total_paths=100)
             
             assert success is False
             assert path is None
             assert handler.current_path_number == 1
 
-    @patch('PathHandler.Config.load_config')
+    @patch('gapbf.PathHandler.Config.load_config')
     @patch('subprocess.run')
-    @patch('PathHandler.LogHandler')
+    @patch('gapbf.PathHandler.LogHandler')
     def test_handle_path_success(self, mock_log_handler, mock_subprocess, mock_load_config):
         """Test handle_path returns success when decrypt succeeds."""
         mock_config = Mock()
@@ -141,9 +141,9 @@ class TestADBHandler:
         mock_subprocess.return_value = mock_result
         
         with patch.object(ADBHandler, 'get_attempted_paths', return_value=[]):
-            handler = ADBHandler()
+            handler = ADBHandler(mock_config)
             
-            success, path = handler.handle_path([1, 2, 3], total_paths=100)
+            success, path = handler.handle_path(['1', '2', '3'], total_paths=100)
             
             assert success is True
             assert path == [1, 2, 3]
@@ -156,7 +156,7 @@ class TestADBHandler:
                 timeout=30
             )
 
-    @patch('PathHandler.Config.load_config')
+    @patch('gapbf.PathHandler.Config.load_config')
     @patch('subprocess.run')
     def test_handle_path_timeout(self, mock_subprocess, mock_load_config):
         """Test handle_path handles subprocess timeout."""
@@ -168,8 +168,8 @@ class TestADBHandler:
         with patch.object(ADBHandler, 'get_attempted_paths', return_value=[]), \
              patch('sys.exit') as mock_exit:
             
-            handler = ADBHandler()
-            handler.handle_path([1, 2, 3])
+            handler = ADBHandler(mock_config)
+            handler.handle_path(['1', '2', '3'])
             
             mock_exit.assert_called_once_with(1)
 
@@ -177,50 +177,50 @@ class TestADBHandler:
 class TestTestHandler:
     """Tests for the TestHandler class."""
     
-    @patch('PathHandler.Config.load_config')
+    @patch('gapbf.PathHandler.Config.load_config')
     def test_testhandler_init(self, mock_load_config):
         """Test TestHandler initialization."""
         mock_config = Mock()
-        mock_config.test_path = [1, 2, 3, 4, 5]
-        mock_config.path_prefix = [1, 2]
-        mock_config.path_suffix = [4, 5]
-        mock_config.excluded_nodes = [6, 7]
+        mock_config.test_path = ['1', '2', '3', '4', '5']  # Nodes as strings
+        mock_config.path_prefix = ['1', '2']
+        mock_config.path_suffix = ['4', '5']
+        mock_config.excluded_nodes = ['6', '7']
         mock_load_config.return_value = mock_config
         
-        handler = TestHandler()
+        handler = TestHandler(mock_config)
         
-        assert handler.test_path == [1, 2, 3, 4, 5]
+        assert handler.test_path == ['1', '2', '3', '4', '5']
 
-    @patch('PathHandler.Config.load_config')
+    @patch('gapbf.PathHandler.Config.load_config')
     def test_handle_path_success(self, mock_load_config):
         """Test handle_path returns success for correct test path."""
         mock_config = Mock()
-        mock_config.test_path = [1, 2, 3, 4, 5]
+        mock_config.test_path = ['1', '2', '3', '4', '5']
         mock_config.path_prefix = []
         mock_config.path_suffix = []
         mock_config.excluded_nodes = []
         mock_load_config.return_value = mock_config
         
-        handler = TestHandler()
+        handler = TestHandler(mock_config)
         
-        success, path = handler.handle_path([1, 2, 3, 4, 5])
+        success, path = handler.handle_path(['1', '2', '3', '4', '5'])
         
         assert success is True
-        assert path == [1, 2, 3, 4, 5]
+        assert path == ['1', '2', '3', '4', '5']
 
-    @patch('PathHandler.Config.load_config')
+    @patch('gapbf.PathHandler.Config.load_config')
     def test_handle_path_failure(self, mock_load_config):
         """Test handle_path returns failure for incorrect path."""
         mock_config = Mock()
-        mock_config.test_path = [1, 2, 3, 4, 5]
+        mock_config.test_path = ['1', '2', '3', '4', '5']
         mock_config.path_prefix = []
         mock_config.path_suffix = []
         mock_config.excluded_nodes = []
         mock_load_config.return_value = mock_config
         
-        handler = TestHandler()
+        handler = TestHandler(mock_config)
         
-        success, path = handler.handle_path([1, 2, 3, 4, 6])
+        success, path = handler.handle_path(['1', '2', '3'])
         
         assert success is False
         assert path is None
@@ -229,17 +229,18 @@ class TestTestHandler:
 class TestPrintHandler:
     """Tests for the PrintHandler class."""
     
-    @patch('PathHandler.Config.load_config')
+    @patch('gapbf.PathHandler.Config.load_config')
     def test_printhandler_init(self, mock_load_config):
         """Test PrintHandler initialization."""
         mock_config = Mock()
         mock_config.grid_size = 3
         mock_load_config.return_value = mock_config
         
-        handler = PrintHandler()
+        grid_nodes = ['1', '2', '3', '4', '5', '6', '7', '8', '9']
+        handler = PrintHandler(mock_config, grid_nodes)
         assert handler.grid_size == 3
 
-    @patch('PathHandler.Config.load_config')
+    @patch('gapbf.PathHandler.Config.load_config')
     @patch('builtins.print')
     def test_handle_path_prints_grid(self, mock_print, mock_load_config):
         """Test handle_path prints the grid representation."""
@@ -247,9 +248,10 @@ class TestPrintHandler:
         mock_config.grid_size = 3
         mock_load_config.return_value = mock_config
         
-        handler = PrintHandler()
+        grid_nodes = ['1', '2', '3', '4', '5', '6', '7', '8', '9']
+        handler = PrintHandler(mock_config, grid_nodes)
         
-        success, path = handler.handle_path([1, 2, 3])
+        success, path = handler.handle_path(['1', '2', '3'])
         
         assert success is False  # PrintHandler always returns False
         assert path is None
@@ -257,15 +259,16 @@ class TestPrintHandler:
         # Should have printed something (grid representation)
         assert mock_print.call_count > 0
 
-    @patch('PathHandler.Config.load_config')
+    @patch('gapbf.PathHandler.Config.load_config')
     def test_render_path_3x3(self, mock_load_config):
         """Test render_path method for 3x3 grid."""
         mock_config = Mock()
         mock_config.grid_size = 3
         mock_load_config.return_value = mock_config
         
-        handler = PrintHandler()
-        grid_rows = handler.render_path([1, 5, 9])
+        grid_nodes = ['1', '2', '3', '4', '5', '6', '7', '8', '9']
+        handler = PrintHandler(mock_config, grid_nodes)
+        grid_rows = handler.render_path(['1', '5', '9'])  # Nodes as strings
         
         # Grid should be 3x3
         assert len(grid_rows) == 3
@@ -279,17 +282,17 @@ class TestPrintHandler:
 class TestLogHandler:
     """Tests for the LogHandler class."""
     
-    @patch('PathHandler.Config.load_config')
+    @patch('gapbf.PathHandler.Config.load_config')
     def test_loghandler_init(self, mock_load_config):
         """Test LogHandler initialization."""
         mock_config = Mock()
         mock_config.paths_log_file_path = './test_paths.csv'
         mock_load_config.return_value = mock_config
         
-        handler = LogHandler()
-        assert handler.paths_log_file_path == './test_paths.csv'
+        handler = LogHandler(mock_config)
+        assert handler.config.paths_log_file_path == './test_paths.csv'
 
-    @patch('PathHandler.Config.load_config')
+    @patch('gapbf.PathHandler.Config.load_config')
     def test_handle_path_logs_to_csv(self, mock_load_config):
         """Test handle_path logs information to CSV file."""
         mock_config = Mock()
@@ -301,7 +304,7 @@ class TestLogHandler:
         mock_result.stdout = 'test output'
         
         with patch('builtins.open', mock_open()) as mock_file:
-            handler = LogHandler()
+            handler = LogHandler(mock_config)
             
             result = handler.handle_path('2023-01-01 12:00:00', [1, 2, 3], mock_result, 'test info')
             
@@ -318,12 +321,12 @@ class TestPathHandlerIntegration:
             temp_file = f.name
         
         try:
-            with patch('PathHandler.Config.load_config') as mock_load:
+            with patch('gapbf.PathHandler.Config.load_config') as mock_load:
                 mock_config = Mock()
                 mock_config.paths_log_file_path = temp_file
                 mock_load.return_value = mock_config
                 
-                handler = LogHandler()
+                handler = LogHandler(mock_config)
                 
                 mock_result = Mock()
                 mock_result.returncode = 0
@@ -341,7 +344,7 @@ class TestPathHandlerIntegration:
         finally:
             os.unlink(temp_file)
 
-    @patch('PathHandler.Config.load_config')
+    @patch('gapbf.PathHandler.Config.load_config')
     @patch('subprocess.run')
     def test_adb_handler_integration(self, mock_subprocess, mock_load_config):
         """Test ADBHandler integration with mocked subprocess."""
@@ -366,9 +369,9 @@ class TestPathHandlerIntegration:
              patch('PathHandler.LogHandler'), \
              patch('time.sleep'):  # Speed up the test
             
-            handler = ADBHandler()
+            handler = ADBHandler(mock_config)
             
-            success, path = handler.handle_path([1, 2, 3], total_paths=100)
+            success, path = handler.handle_path(['1', '2', '3'], total_paths=100)
             
             assert success is False
             assert path is None

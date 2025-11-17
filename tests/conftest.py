@@ -91,15 +91,10 @@ def mock_failed_subprocess_result():
 
 @pytest.fixture(autouse=True)
 def clean_singletons():
-    """Fixture to clean up singleton instances between tests."""
-    # Reset Logger singleton
-    from Logging import Logger
-    Logger._instance = None
-    
+    """Fixture to clean up between tests."""
+    # No longer need to reset Logger singleton since we removed it
     yield
-    
-    # Clean up after test
-    Logger._instance = None
+    # No cleanup needed anymore
 
 
 @pytest.fixture

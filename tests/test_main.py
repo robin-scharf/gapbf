@@ -7,34 +7,19 @@ import argparse
 class TestMainModule:
     """Tests for the main.py module functionality."""
     
-    @patch('main.Config.load_config')
-    @patch('main.PathFinder')
-    def test_main_imports_and_initialization(self, mock_pathfinder, mock_load_config):
-        """Test that main.py imports and initializes components correctly."""
-        mock_config = Mock()
-        mock_config.grid_size = 3
-        mock_config.path_min_length = 4
-        mock_config.path_max_length = 9
-        mock_config.path_max_node_distance = 1
-        mock_config.path_prefix = []
-        mock_config.path_suffix = []
-        mock_config.excluded_nodes = []
-        mock_load_config.return_value = mock_config
+    def test_main_imports_and_initialization(self):
+        """Test that main module imports successfully without errors."""
+        # Config is no longer loaded at module level - it's loaded in main()
+        # This just tests the import works
+        from src.gapbf import main
         
-        # Import main to trigger module-level initialization
-        import main
-        
-        # Verify config was loaded
-        mock_load_config.assert_called_once_with('config.yaml')
-        
-        # Verify PathFinder was initialized with config values
-        mock_pathfinder.assert_called_once_with(
-            3, 4, 9, 1, [], [], []
-        )
+        # Verify the module has expected functions
+        assert hasattr(main, 'main')
+        assert hasattr(main, 'validate_mode')
 
     def test_validate_mode_valid_modes(self):
         """Test validate_mode function with valid mode combinations."""
-        from main import validate_mode
+        from src.gapbf.main import validate_mode
         
         # Test single valid modes
         assert validate_mode('a') == 'a'
@@ -47,7 +32,7 @@ class TestMainModule:
 
     def test_validate_mode_invalid_modes(self):
         """Test validate_mode function with invalid modes."""
-        from main import validate_mode
+        from src.gapbf.main import validate_mode
         
         with pytest.raises(argparse.ArgumentTypeError, match="Invalid mode"):
             validate_mode('x')  # Invalid single mode
@@ -55,8 +40,8 @@ class TestMainModule:
         with pytest.raises(argparse.ArgumentTypeError, match="Invalid mode"):
             validate_mode('az')  # Mix of valid and invalid
 
-    @patch('main.Config.load_config')
-    @patch('main.PathFinder')
+    @patch('gapbf.main.Config.load_config')
+    @patch('gapbf.main.PathFinder')
     @patch('sys.argv', ['main.py', '-m', 'p'])
     def test_argument_parsing_print_mode(self, mock_pathfinder, mock_load_config):
         """Test argument parsing for print mode."""
@@ -74,15 +59,15 @@ class TestMainModule:
             del sys.modules['main']
         
         with patch('builtins.print'):
-            import main
+            from src.gapbf import main
         
         # Verify PrintHandler was added
         mock_pf.add_handler.assert_called_once()
         handler_arg = mock_pf.add_handler.call_args[0][0]
         assert handler_arg.__class__.__name__ == 'PrintHandler'
 
-    @patch('main.Config.load_config')
-    @patch('main.PathFinder')
+    @patch('gapbf.main.Config.load_config')
+    @patch('gapbf.main.PathFinder')
     @patch('sys.argv', ['main.py', '-m', 't'])
     def test_argument_parsing_test_mode(self, mock_pathfinder, mock_load_config):
         """Test argument parsing for test mode."""
@@ -99,15 +84,15 @@ class TestMainModule:
             del sys.modules['main']
         
         with patch('builtins.print'):
-            import main
+            from src.gapbf import main
         
         # Verify TestHandler was added
         mock_pf.add_handler.assert_called_once()
         handler_arg = mock_pf.add_handler.call_args[0][0]
         assert handler_arg.__class__.__name__ == 'TestHandler'
 
-    @patch('main.Config.load_config')
-    @patch('main.PathFinder')
+    @patch('gapbf.main.Config.load_config')
+    @patch('gapbf.main.PathFinder')
     @patch('subprocess.run')  # Mock ADB handler's subprocess calls
     @patch('sys.argv', ['main.py', '-m', 'a'])
     def test_argument_parsing_adb_mode(self, mock_subprocess, mock_pathfinder, mock_load_config):
@@ -132,16 +117,16 @@ class TestMainModule:
             del sys.modules['main']
         
         with patch('builtins.print'), \
-             patch('PathHandler.ADBHandler.get_attempted_paths', return_value=[]):
-            import main
+             patch('gapbf.PathHandler.ADBHandler.get_attempted_paths', return_value=[]):
+            from src.gapbf import main
         
         # Verify ADBHandler was added
         mock_pf.add_handler.assert_called_once()
         handler_arg = mock_pf.add_handler.call_args[0][0]
         assert handler_arg.__class__.__name__ == 'ADBHandler'
 
-    @patch('main.Config.load_config')
-    @patch('main.PathFinder')
+    @patch('gapbf.main.Config.load_config')
+    @patch('gapbf.main.PathFinder')
     @patch('sys.argv', ['main.py', '-m', 'ap'])
     def test_multiple_handlers(self, mock_pathfinder, mock_load_config):
         """Test adding multiple handlers."""
@@ -165,9 +150,9 @@ class TestMainModule:
             del sys.modules['main']
         
         with patch('builtins.print'), \
-             patch('PathHandler.ADBHandler.get_attempted_paths', return_value=[]), \
+             patch('gapbf.PathHandler.ADBHandler.get_attempted_paths', return_value=[]), \
              patch('subprocess.run'):
-            import main
+            from src.gapbf import main
         
         # Verify both handlers were added
         assert mock_pf.add_handler.call_count == 2
@@ -179,8 +164,8 @@ class TestMainModule:
         assert 'ADBHandler' in handler_types
         assert 'PrintHandler' in handler_types
 
-    @patch('main.Config.load_config')
-    @patch('main.PathFinder')
+    @patch('gapbf.main.Config.load_config')
+    @patch('gapbf.main.PathFinder')
     @patch('sys.argv', ['main.py', '-m', 'p'])
     def test_successful_path_found(self, mock_pathfinder, mock_load_config):
         """Test main execution when successful path is found."""
@@ -197,15 +182,15 @@ class TestMainModule:
             del sys.modules['main']
         
         with patch('builtins.print') as mock_print:
-            import main
+            from src.gapbf import main
         
         # Verify success message was printed
         print_calls = [str(call) for call in mock_print.call_args_list]
         success_printed = any('Success! The path is: [1, 2, 3, 4, 5]' in call for call in print_calls)
         assert success_printed
 
-    @patch('main.Config.load_config')
-    @patch('main.PathFinder')
+    @patch('gapbf.main.Config.load_config')
+    @patch('gapbf.main.PathFinder')
     @patch('sys.argv', ['main.py', '-m', 'p'])
     def test_no_successful_path_found(self, mock_pathfinder, mock_load_config):
         """Test main execution when no successful path is found."""
@@ -222,7 +207,7 @@ class TestMainModule:
             del sys.modules['main']
         
         with patch('builtins.print') as mock_print:
-            import main
+            from src.gapbf import main
         
         # Verify failure message was printed
         print_calls = [str(call) for call in mock_print.call_args_list]
@@ -238,15 +223,15 @@ class TestMainModule:
         
         with patch('sys.exit') as mock_exit:
             try:
-                import main
+                from src.gapbf import main
             except SystemExit:
                 pass
         
         # Should exit due to invalid argument
         mock_exit.assert_called_with(1)
 
-    @patch('main.Config.load_config')
-    @patch('main.PathFinder')
+    @patch('gapbf.main.Config.load_config')
+    @patch('gapbf.main.PathFinder')
     @patch('sys.argv', ['main.py', '-m', 'x'])  # Invalid mode
     def test_unrecognized_mode_warning(self, mock_pathfinder, mock_load_config):
         """Test warning for unrecognized mode that passes validation."""
@@ -261,8 +246,8 @@ class TestMainModule:
         # This test would need to bypass the validation - it's more of an edge case
         # The validation should catch invalid modes, but this tests the fallback
 
-    @patch('main.Config.load_config')
-    @patch('main.PathFinder')
+    @patch('gapbf.main.Config.load_config')
+    @patch('gapbf.main.PathFinder')
     @patch('sys.argv', ['main.py', '-m', 'p', '-l', 'debug'])
     def test_logging_level_argument(self, mock_pathfinder, mock_load_config):
         """Test that logging level argument is parsed correctly."""
@@ -279,7 +264,7 @@ class TestMainModule:
             del sys.modules['main']
         
         with patch('builtins.print'):
-            import main
+            from src.gapbf import main
         
         # This mainly tests that the argument is accepted without error
         # The actual logging configuration would be tested in the Logging module tests
@@ -288,14 +273,14 @@ class TestMainModule:
 class TestMainExecution:
     """Tests for main execution flow."""
     
-    @patch('main.Config.load_config')
-    @patch('main.PathFinder')
+    @patch('gapbf.main.Config.load_config')
+    @patch('gapbf.main.PathFinder')
     def test_handler_classes_dict(self, mock_pathfinder, mock_load_config):
         """Test that handler_classes dictionary is correctly defined."""
         mock_config = Mock()
         mock_load_config.return_value = mock_config
         
-        import main
+        from src.gapbf import main
         
         expected_handlers = ['a', 'p', 't']
         for handler_key in expected_handlers:
