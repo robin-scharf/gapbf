@@ -16,3 +16,4 @@ __pycache__/
 
 # Ignore the config file
 config.yaml
+test.csv
