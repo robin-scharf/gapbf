@@ -25,8 +25,6 @@ class TestConfig:
             stdout_normal='Failed',
             stdout_success='Success',
             stdout_error='Error',
-            paths_log_file_path='./paths.csv',
-            process_log_file_path='./process.csv',
             adb_timeout=30,
             total_paths=100
         )
@@ -75,12 +73,9 @@ path_suffix: [8, 9]
 excluded_nodes: [5]
 attempt_delay: 10.5
 test_path: [1, 2, 3]
-outputstrings:
-  stdout_normal: "Failed to decrypt"
-  stdout_success: "Data successfully decrypted"
-  stdout_error: "Error occurred"
-paths_log_file_path: "./paths.csv"
-process_log_file_path: "./process.csv"
+stdout_normal: "Failed to decrypt"
+stdout_success: "Data successfully decrypted"
+stdout_error: "Error occurred"
 adb_timeout: 30
 total_paths: 100
 """
@@ -145,11 +140,9 @@ class TestConfigIntegration:
             'path_min_length': 4,
             'path_max_length': 9,
             'attempt_delay': 10.5,
-            'outputstrings': {
-                'stdout_normal': 'Failed',
-                'stdout_success': 'Success',
-                'stdout_error': 'Error'
-            },
+            'stdout_normal': 'Failed',
+            'stdout_success': 'Success',
+            'stdout_error': 'Error',
             'total_paths': 100
         }
         

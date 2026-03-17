@@ -1,294 +1,130 @@
+from pathlib import Path
+
 import pytest
-import sys
-from unittest.mock import patch, Mock, MagicMock
-import argparse
+from typer.testing import CliRunner
+
+from gapbf.Config import Config
+from gapbf.Database import ResumeInfo, RunDatabase
+from gapbf.main import app, handler_classes, validate_mode
 
 
-class TestMainModule:
-    """Tests for the main.py module functionality."""
-    
-    def test_main_imports_and_initialization(self):
-        """Test that main module imports successfully without errors."""
-        # Config is no longer loaded at module level - it's loaded in main()
-        # This just tests the import works
-        from src.gapbf import main
-        
-        # Verify the module has expected functions
-        assert hasattr(main, 'main')
-        assert hasattr(main, 'validate_mode')
-
-    def test_validate_mode_valid_modes(self):
-        """Test validate_mode function with valid mode combinations."""
-        from src.gapbf.main import validate_mode
-        
-        # Test single valid modes
-        assert validate_mode('a') == 'a'
-        assert validate_mode('p') == 'p'
-        assert validate_mode('t') == 't'
-        
-        # Test valid combinations
-        assert validate_mode('ap') == 'ap'
-        assert validate_mode('apt') == 'apt'
-
-    def test_validate_mode_invalid_modes(self):
-        """Test validate_mode function with invalid modes."""
-        from src.gapbf.main import validate_mode
-        
-        with pytest.raises(argparse.ArgumentTypeError, match="Invalid mode"):
-            validate_mode('x')  # Invalid single mode
-        
-        with pytest.raises(argparse.ArgumentTypeError, match="Invalid mode"):
-            validate_mode('az')  # Mix of valid and invalid
-
-    @patch('gapbf.main.Config.load_config')
-    @patch('gapbf.main.PathFinder')
-    @patch('sys.argv', ['main.py', '-m', 'p'])
-    def test_argument_parsing_print_mode(self, mock_pathfinder, mock_load_config):
-        """Test argument parsing for print mode."""
-        mock_config = Mock()
-        mock_load_config.return_value = mock_config
-        
-        mock_pf = Mock()
-        mock_pf.total_paths = 100
-        mock_pf.dfs.return_value = (True, [1, 2, 3, 4])
-        mock_pathfinder.return_value = mock_pf
-        
-        # Reimport to trigger argument parsing
-        import importlib
-        if 'main' in sys.modules:
-            del sys.modules['main']
-        
-        with patch('builtins.print'):
-            from src.gapbf import main
-        
-        # Verify PrintHandler was added
-        mock_pf.add_handler.assert_called_once()
-        handler_arg = mock_pf.add_handler.call_args[0][0]
-        assert handler_arg.__class__.__name__ == 'PrintHandler'
-
-    @patch('gapbf.main.Config.load_config')
-    @patch('gapbf.main.PathFinder')
-    @patch('sys.argv', ['main.py', '-m', 't'])
-    def test_argument_parsing_test_mode(self, mock_pathfinder, mock_load_config):
-        """Test argument parsing for test mode."""
-        mock_config = Mock()
-        mock_load_config.return_value = mock_config
-        
-        mock_pf = Mock()
-        mock_pf.total_paths = 100
-        mock_pf.dfs.return_value = (True, [1, 2, 3, 4])
-        mock_pathfinder.return_value = mock_pf
-        
-        # Reimport to trigger argument parsing
-        if 'main' in sys.modules:
-            del sys.modules['main']
-        
-        with patch('builtins.print'):
-            from src.gapbf import main
-        
-        # Verify TestHandler was added
-        mock_pf.add_handler.assert_called_once()
-        handler_arg = mock_pf.add_handler.call_args[0][0]
-        assert handler_arg.__class__.__name__ == 'TestHandler'
-
-    @patch('gapbf.main.Config.load_config')
-    @patch('gapbf.main.PathFinder')
-    @patch('subprocess.run')  # Mock ADB handler's subprocess calls
-    @patch('sys.argv', ['main.py', '-m', 'a'])
-    def test_argument_parsing_adb_mode(self, mock_subprocess, mock_pathfinder, mock_load_config):
-        """Test argument parsing for ADB mode."""
-        mock_config = Mock()
-        mock_config.stdout_normal = 'Failed'
-        mock_config.stdout_success = 'Success'
-        mock_config.stdout_error = 'Error'
-        mock_config.attempt_delay = 1000
-        mock_config.paths_log_file_path = './test.csv'
-        mock_config.adb_timeout = 30
-        mock_config.total_paths = 100
-        mock_load_config.return_value = mock_config
-        
-        mock_pf = Mock()
-        mock_pf.total_paths = 100
-        mock_pf.dfs.return_value = (True, [1, 2, 3, 4])
-        mock_pathfinder.return_value = mock_pf
-        
-        # Reimport to trigger argument parsing
-        if 'main' in sys.modules:
-            del sys.modules['main']
-        
-        with patch('builtins.print'), \
-             patch('gapbf.PathHandler.ADBHandler.get_attempted_paths', return_value=[]):
-            from src.gapbf import main
-        
-        # Verify ADBHandler was added
-        mock_pf.add_handler.assert_called_once()
-        handler_arg = mock_pf.add_handler.call_args[0][0]
-        assert handler_arg.__class__.__name__ == 'ADBHandler'
-
-    @patch('gapbf.main.Config.load_config')
-    @patch('gapbf.main.PathFinder')
-    @patch('sys.argv', ['main.py', '-m', 'ap'])
-    def test_multiple_handlers(self, mock_pathfinder, mock_load_config):
-        """Test adding multiple handlers."""
-        mock_config = Mock()
-        mock_config.stdout_normal = 'Failed'
-        mock_config.stdout_success = 'Success'
-        mock_config.stdout_error = 'Error'
-        mock_config.attempt_delay = 1000
-        mock_config.paths_log_file_path = './test.csv'
-        mock_config.adb_timeout = 30
-        mock_config.total_paths = 100
-        mock_load_config.return_value = mock_config
-        
-        mock_pf = Mock()
-        mock_pf.total_paths = 100
-        mock_pf.dfs.return_value = (True, [1, 2, 3, 4])
-        mock_pathfinder.return_value = mock_pf
-        
-        # Reimport to trigger argument parsing
-        if 'main' in sys.modules:
-            del sys.modules['main']
-        
-        with patch('builtins.print'), \
-             patch('gapbf.PathHandler.ADBHandler.get_attempted_paths', return_value=[]), \
-             patch('subprocess.run'):
-            from src.gapbf import main
-        
-        # Verify both handlers were added
-        assert mock_pf.add_handler.call_count == 2
-        
-        # Get the handler types
-        handler_calls = mock_pf.add_handler.call_args_list
-        handler_types = [call[0][0].__class__.__name__ for call in handler_calls]
-        
-        assert 'ADBHandler' in handler_types
-        assert 'PrintHandler' in handler_types
-
-    @patch('gapbf.main.Config.load_config')
-    @patch('gapbf.main.PathFinder')
-    @patch('sys.argv', ['main.py', '-m', 'p'])
-    def test_successful_path_found(self, mock_pathfinder, mock_load_config):
-        """Test main execution when successful path is found."""
-        mock_config = Mock()
-        mock_load_config.return_value = mock_config
-        
-        mock_pf = Mock()
-        mock_pf.total_paths = 100
-        mock_pf.dfs.return_value = (True, [1, 2, 3, 4, 5])
-        mock_pathfinder.return_value = mock_pf
-        
-        # Reimport to trigger execution
-        if 'main' in sys.modules:
-            del sys.modules['main']
-        
-        with patch('builtins.print') as mock_print:
-            from src.gapbf import main
-        
-        # Verify success message was printed
-        print_calls = [str(call) for call in mock_print.call_args_list]
-        success_printed = any('Success! The path is: [1, 2, 3, 4, 5]' in call for call in print_calls)
-        assert success_printed
-
-    @patch('gapbf.main.Config.load_config')
-    @patch('gapbf.main.PathFinder')
-    @patch('sys.argv', ['main.py', '-m', 'p'])
-    def test_no_successful_path_found(self, mock_pathfinder, mock_load_config):
-        """Test main execution when no successful path is found."""
-        mock_config = Mock()
-        mock_load_config.return_value = mock_config
-        
-        mock_pf = Mock()
-        mock_pf.total_paths = 100
-        mock_pf.dfs.return_value = (False, [])
-        mock_pathfinder.return_value = mock_pf
-        
-        # Reimport to trigger execution
-        if 'main' in sys.modules:
-            del sys.modules['main']
-        
-        with patch('builtins.print') as mock_print:
-            from src.gapbf import main
-        
-        # Verify failure message was printed
-        print_calls = [str(call) for call in mock_print.call_args_list]
-        failure_printed = any('Reached end of paths to try' in call for call in print_calls)
-        assert failure_printed
-
-    @patch('sys.argv', ['main.py', '-m', 'invalid'])
-    def test_invalid_mode_argument(self):
-        """Test that invalid mode arguments are handled."""
-        # Reimport to trigger argument parsing
-        if 'main' in sys.modules:
-            del sys.modules['main']
-        
-        with patch('sys.exit') as mock_exit:
-            try:
-                from src.gapbf import main
-            except SystemExit:
-                pass
-        
-        # Should exit due to invalid argument
-        mock_exit.assert_called_with(1)
-
-    @patch('gapbf.main.Config.load_config')
-    @patch('gapbf.main.PathFinder')
-    @patch('sys.argv', ['main.py', '-m', 'x'])  # Invalid mode
-    def test_unrecognized_mode_warning(self, mock_pathfinder, mock_load_config):
-        """Test warning for unrecognized mode that passes validation."""
-        mock_config = Mock()
-        mock_load_config.return_value = mock_config
-        
-        mock_pf = Mock()
-        mock_pf.total_paths = 100
-        mock_pf.dfs.return_value = (False, [])
-        mock_pathfinder.return_value = mock_pf
-        
-        # This test would need to bypass the validation - it's more of an edge case
-        # The validation should catch invalid modes, but this tests the fallback
-
-    @patch('gapbf.main.Config.load_config')
-    @patch('gapbf.main.PathFinder')
-    @patch('sys.argv', ['main.py', '-m', 'p', '-l', 'debug'])
-    def test_logging_level_argument(self, mock_pathfinder, mock_load_config):
-        """Test that logging level argument is parsed correctly."""
-        mock_config = Mock()
-        mock_load_config.return_value = mock_config
-        
-        mock_pf = Mock()
-        mock_pf.total_paths = 100
-        mock_pf.dfs.return_value = (False, [])
-        mock_pathfinder.return_value = mock_pf
-        
-        # Reimport to trigger argument parsing
-        if 'main' in sys.modules:
-            del sys.modules['main']
-        
-        with patch('builtins.print'):
-            from src.gapbf import main
-        
-        # This mainly tests that the argument is accepted without error
-        # The actual logging configuration would be tested in the Logging module tests
+runner = CliRunner()
 
 
-class TestMainExecution:
-    """Tests for main execution flow."""
-    
-    @patch('gapbf.main.Config.load_config')
-    @patch('gapbf.main.PathFinder')
-    def test_handler_classes_dict(self, mock_pathfinder, mock_load_config):
-        """Test that handler_classes dictionary is correctly defined."""
-        mock_config = Mock()
-        mock_load_config.return_value = mock_config
-        
-        from src.gapbf import main
-        
-        expected_handlers = ['a', 'p', 't']
-        for handler_key in expected_handlers:
-            assert handler_key in main.handler_classes
-            assert 'class' in main.handler_classes[handler_key]
-            assert 'help' in main.handler_classes[handler_key]
-        
-        # Verify handler classes
-        assert main.handler_classes['a']['class'].__name__ == 'ADBHandler'
-        assert main.handler_classes['p']['class'].__name__ == 'PrintHandler'
-        assert main.handler_classes['t']['class'].__name__ == 'TestHandler'
+def test_validate_mode_accepts_supported_combinations():
+    assert validate_mode('a') == 'a'
+    assert validate_mode('p') == 'p'
+    assert validate_mode('t') == 't'
+    assert validate_mode('ap') == 'ap'
+    assert validate_mode('apt') == 'apt'
+
+
+def test_validate_mode_rejects_invalid_modes():
+    with pytest.raises(Exception, match='Invalid mode'):
+        validate_mode('x')
+
+    with pytest.raises(Exception, match='Invalid mode'):
+        validate_mode('az')
+
+
+def test_handler_classes_define_expected_handlers():
+    assert set(handler_classes) == {'a', 'p', 't'}
+    assert handler_classes['a']['class'].__name__ == 'ADBHandler'
+    assert handler_classes['p']['class'].__name__ == 'PrintHandler'
+    assert handler_classes['t']['class'].__name__ == 'TestHandler'
+
+
+def test_run_command_dry_run_uses_command_surface(mocker):
+    config = Config(grid_size=3, path_min_length=4, path_max_length=5)
+    mocker.patch('gapbf.main.Config.load_config', return_value=config)
+    path_finder = mocker.Mock()
+    path_finder.total_paths = 42
+    mocker.patch('gapbf.main.PathFinder', return_value=path_finder)
+    mocker.patch('gapbf.main._generate_sample_paths', return_value=iter([['1', '2', '3', '4']]))
+
+    result = runner.invoke(app, ['run', '--mode', 'p', '--dry-run'])
+
+    assert result.exit_code == 0
+    assert 'Dry Run' in result.stdout
+    assert '1234' in result.stdout
+
+
+def test_legacy_root_options_still_run_dry_run(mocker):
+    config = Config(grid_size=3, path_min_length=4, path_max_length=5)
+    mocker.patch('gapbf.main.Config.load_config', return_value=config)
+    path_finder = mocker.Mock()
+    path_finder.total_paths = 7
+    mocker.patch('gapbf.main.PathFinder', return_value=path_finder)
+    mocker.patch('gapbf.main._generate_sample_paths', return_value=iter([]))
+
+    result = runner.invoke(app, ['--mode', 'p', '--dry-run'])
+
+    assert result.exit_code == 0
+    assert 'Dry Run' in result.stdout
+
+
+def test_history_command_renders_recent_runs(tmp_path):
+    db_path = tmp_path / 'gapbf.db'
+    config_path = tmp_path / 'config.yaml'
+    config_path.write_text(
+        '\n'.join([
+            'grid_size: 3',
+            'path_min_length: 4',
+            'path_max_length: 9',
+            f'db_path: {db_path}',
+        ]),
+        encoding='utf-8',
+    )
+
+    config = Config.load_config(str(config_path))
+    database = RunDatabase(str(db_path))
+    run = database.create_run(config, 'SERIAL123', 'a')
+    database.log_attempt(run.run_id, '1234', 'Failed to decrypt', 'normal_failure', 0, 12.0)
+    database.finish_run(run.run_id, 'completed')
+    database.close()
+
+    result = runner.invoke(app, ['history', '--config', str(config_path)])
+
+    assert result.exit_code == 0
+    assert 'Recent Runs' in result.stdout
+    assert 'SERIAL123' in result.stdout
+    assert 'completed' in result.stdout
+
+
+def test_check_device_command_renders_connected_device(mocker):
+    config = Config(grid_size=3, path_min_length=4, path_max_length=9, adb_timeout=30)
+    mocker.patch('gapbf.main.Config.load_config', return_value=config)
+    mocker.patch('gapbf.main.detect_device_id', return_value='SERIAL123')
+
+    result = runner.invoke(app, ['check-device'])
+
+    assert result.exit_code == 0
+    assert 'ADB Device' in result.stdout
+    assert 'SERIAL123' in result.stdout
+
+
+def test_status_command_renders_resume_state(mocker):
+    config = Config(grid_size=3, path_min_length=4, path_max_length=9, db_path='test.db', adb_timeout=30)
+    mocker.patch('gapbf.main.Config.load_config', return_value=config)
+    path_finder = mocker.Mock()
+    path_finder.total_paths = 389112
+    mocker.patch('gapbf.main.PathFinder', return_value=path_finder)
+    mocker.patch('gapbf.main.detect_device_id', return_value='SERIAL123')
+    database = mocker.Mock()
+    database.get_resume_info.return_value = ResumeInfo(
+        attempted_count=25,
+        latest_run_id='run-1',
+        latest_started_at='2026-03-18T10:00:00+00:00',
+        latest_finished_at=None,
+        latest_status='running',
+        latest_successful_attempt=None,
+    )
+    mocker.patch('gapbf.main.RunDatabase', return_value=database)
+
+    result = runner.invoke(app, ['status'])
+
+    assert result.exit_code == 0
+    assert 'GAPBF Run Summary' in result.stdout
+    assert 'SERIAL123' in result.stdout
+    assert 'running' in result.stdout
+    assert '25' in result.stdout

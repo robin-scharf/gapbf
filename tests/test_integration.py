@@ -4,8 +4,9 @@ import os
 import yaml
 from unittest.mock import patch, Mock
 from gapbf.Config import Config
+from gapbf.Database import RunDatabase
 from gapbf.PathFinder import PathFinder
-from gapbf.PathHandler import ADBHandler, TestHandler, PrintHandler
+from gapbf.PathHandler import ADBHandler, TestHandler as GapbfTestHandler, PrintHandler
 
 
 class TestFullIntegration:
@@ -24,13 +25,9 @@ class TestFullIntegration:
             'excluded_nodes': [5],
             'attempt_delay': 10.0,
             'test_path': [1, 2, 3, 4],
-            'outputstrings': {
-                'stdout_normal': 'Failed',
-                'stdout_success': 'Success',
-                'stdout_error': 'Error'
-            },
-            'paths_log_file_path': './test_paths.csv',
-            'process_log_file_path': './test_process.csv',
+            'stdout_normal': 'Failed',
+            'stdout_success': 'Success',
+            'stdout_error': 'Error',
             'adb_timeout': 30,
             'total_paths': 0
         }
@@ -76,41 +73,33 @@ class TestFullIntegration:
                 'path_suffix': [5],
                 'test_path': [1, 2, 3, 4, 5],
                 'excluded_nodes': [],
-                'outputstrings': {
-                    'stdout_normal': 'Failed',
-                    'stdout_success': 'Success',
-                    'stdout_error': 'Error'
-                },
-                'paths_log_file_path': './test_paths.csv',
+                'stdout_normal': 'Failed',
+                'stdout_success': 'Success',
+                'stdout_error': 'Error',
                 'total_paths': 0
             }
             yaml.dump(config_data, f)
             config_file = f.name
         
         try:
-            with patch('gapbf.PathHandler.Config.load_config') as mock_load:
-                mock_config = Config.load_config(config_file)
-                mock_load.return_value = mock_config
-                
-                # Create PathFinder
-                pf = PathFinder(
-                    grid_size=3,
-                    path_min_len=4,
-                    path_max_len=5,
-                    path_prefix=[1],
-                    path_suffix=[5],
-                    excluded_nodes=[]
-                )
-                
-                # Add TestHandler
-                test_handler = TestHandler(mock_config)
-                pf.add_handler(test_handler)
-                
-                # Run DFS - should find the test path
-                success, found_path = pf.dfs()
-                
-                assert success is True
-                assert found_path == [1, 2, 3, 4, 5]
+            mock_config = Config.load_config(config_file)
+
+            pf = PathFinder(
+                grid_size=3,
+                path_min_len=4,
+                path_max_len=5,
+                path_prefix=[1],
+                path_suffix=[5],
+                excluded_nodes=[]
+            )
+
+            test_handler = GapbfTestHandler(mock_config, Mock())
+            pf.add_handler(test_handler)
+
+            success, found_path = pf.dfs()
+
+            assert success is True
+            assert found_path == ['1', '2', '3', '4', '5']
                 
         finally:
             os.unlink(config_file)
@@ -118,6 +107,7 @@ class TestFullIntegration:
     @patch('subprocess.run')
     def test_pathfinder_with_adb_handler_integration(self, mock_subprocess):
         """Test PathFinder working with ADBHandler (mocked)."""
+        db_path = tempfile.NamedTemporaryFile(suffix='.db', delete=False).name
         with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
             config_data = {
                 'grid_size': 3,
@@ -126,13 +116,12 @@ class TestFullIntegration:
                 'path_prefix': [1],
                 'path_suffix': [],
                 'excluded_nodes': [],
-                'attempt_delay': 100,
-                'outputstrings': {
-                    'stdout_normal': 'Failed to decrypt',
-                    'stdout_success': 'Data successfully decrypted',
-                    'stdout_error': 'Error'
-                },
-                'paths_log_file_path': './test_paths.csv',
+                'attempt_delay': 0,
+                'stdout_normal': 'Failed to decrypt',
+                'stdout_success': 'Data successfully decrypted',
+                'stdout_error': 'Error',
+                'db_path': db_path,
+                'echo_commands': False,
                 'adb_timeout': 30,
                 'total_paths': 0
             }
@@ -140,53 +129,55 @@ class TestFullIntegration:
             config_file = f.name
         
         try:
-            with patch('gapbf.PathHandler.Config.load_config') as mock_load:
-                mock_config = Config.load_config(config_file)
-                mock_load.return_value = mock_config
-                
-                # Mock successful ADB response for specific path
-                def mock_adb_response(command, **kwargs):
-                    if 'decrypt' in command and '1234' in command:
-                        result = Mock()
-                        result.returncode = 0
-                        result.stdout = 'Data successfully decrypted'
-                        result.stderr = ''
-                        return result
-                    else:
-                        result = Mock()
-                        result.returncode = 0
-                        result.stdout = 'Failed to decrypt'
-                        result.stderr = ''
-                        return result
-                
-                mock_subprocess.side_effect = mock_adb_response
-                
-                # Create PathFinder
-                pf = PathFinder(
-                    grid_size=3,
-                    path_min_len=4,
-                    path_max_len=4,
-                    path_prefix=[1],
-                    path_suffix=[],
-                    excluded_nodes=[]
-                )
-                
-                with patch.object(ADBHandler, 'get_attempted_paths', return_value=[]), \
-                     patch('PathHandler.LogHandler'):
-                    
-                    # Add ADBHandler
-                    adb_handler = ADBHandler()
-                    pf.add_handler(adb_handler)
-                    
-                    # Run DFS - should find successful path
-                    success, found_path = pf.dfs()
-                    
-                    # Should succeed when it tries path [1, 2, 3, 4]
-                    assert success is True
-                    assert found_path == [1, 2, 3, 4]
+            mock_config = Config.load_config(config_file)
+            database = RunDatabase(mock_config.db_path)
+            run = database.create_run(mock_config, 'SERIAL123', 'a')
+
+            def mock_adb_response(command, **kwargs):
+                if command[:2] == ['adb', 'start-server']:
+                    result = Mock()
+                    result.returncode = 0
+                    result.stdout = ''
+                    result.stderr = ''
+                    return result
+                if 'decrypt' in command and '1234' in command:
+                    result = Mock()
+                    result.returncode = 0
+                    result.stdout = 'Data successfully decrypted'
+                    result.stderr = ''
+                    return result
+
+                result = Mock()
+                result.returncode = 0
+                result.stdout = 'Failed to decrypt'
+                result.stderr = ''
+                return result
+
+            mock_subprocess.side_effect = mock_adb_response
+
+            pf = PathFinder(
+                grid_size=3,
+                path_min_len=4,
+                path_max_len=4,
+                path_prefix=[1],
+                path_suffix=[],
+                excluded_nodes=[]
+            )
+
+            adb_handler = ADBHandler(mock_config, database=database, run_id=run.run_id, device_id='SERIAL123', output=Mock())
+            pf.add_handler(adb_handler)
+
+            success, found_path = pf.dfs()
+
+            assert success is True
+            assert found_path == ['1', '2', '3', '4']
+            logged = database.get_attempted_paths(mock_config, 'SERIAL123')
+            assert '1234' in logged
+            database.close()
                 
         finally:
             os.unlink(config_file)
+            os.unlink(db_path)
 
     def test_multiple_handlers_priority(self):
         """Test that multiple handlers work and first success is returned."""
@@ -199,40 +190,34 @@ class TestFullIntegration:
                 'path_prefix': [],
                 'path_suffix': [],
                 'excluded_nodes': [],
-                'outputstrings': {'stdout_normal': 'Failed', 'stdout_success': 'Success', 'stdout_error': 'Error'},
-                'paths_log_file_path': './test_paths.csv',
+                'stdout_normal': 'Failed', 'stdout_success': 'Success', 'stdout_error': 'Error',
                 'total_paths': 0
             }
             yaml.dump(config_data, f)
             config_file = f.name
         
         try:
-            with patch('gapbf.PathHandler.Config.load_config') as mock_load:
-                mock_config = Config.load_config(config_file)
-                mock_load.return_value = mock_config
-                
-                pf = PathFinder(
-                    grid_size=3,
-                    path_min_len=4,
-                    path_max_len=4,
-                    path_prefix=[],
-                    path_suffix=[],
-                    excluded_nodes=[]
-                )
-                
-                # Add handlers in order: Print (always fails), Test (succeeds for correct path)
-                print_handler = PrintHandler()
-                test_handler = TestHandler(mock_config)
-                
-                pf.add_handler(print_handler)
-                pf.add_handler(test_handler)
-                
-                # Run DFS
-                success, found_path = pf.dfs()
-                
-                # Should succeed via TestHandler
-                assert success is True
-                assert found_path == [1, 2, 3, 4]
+            mock_config = Config.load_config(config_file)
+
+            pf = PathFinder(
+                grid_size=3,
+                path_min_len=4,
+                path_max_len=4,
+                path_prefix=[],
+                path_suffix=[],
+                excluded_nodes=[]
+            )
+
+            print_handler = PrintHandler(mock_config, pf.grid_nodes, Mock())
+            test_handler = GapbfTestHandler(mock_config, Mock())
+
+            pf.add_handler(print_handler)
+            pf.add_handler(test_handler)
+
+            success, found_path = pf.dfs()
+
+            assert success is True
+            assert found_path == ['1', '2', '3', '4']
                 
         finally:
             os.unlink(config_file)
@@ -248,50 +233,44 @@ class TestFullIntegration:
                 'path_suffix': [9],
                 'excluded_nodes': [5],  # Exclude center node
                 'test_path': [1, 2, 3, 6, 9],  # Valid path meeting all constraints
-                'outputstrings': {'stdout_normal': 'Failed', 'stdout_success': 'Success', 'stdout_error': 'Error'},
-                'paths_log_file_path': './test_paths.csv',
+                'stdout_normal': 'Failed', 'stdout_success': 'Success', 'stdout_error': 'Error',
                 'total_paths': 0
             }
             yaml.dump(config_data, f)
             config_file = f.name
         
         try:
-            with patch('gapbf.PathHandler.Config.load_config') as mock_load:
-                mock_config = Config.load_config(config_file)
-                mock_load.return_value = mock_config
-                
-                pf = PathFinder(
-                    grid_size=3,
-                    path_min_len=5,
-                    path_max_len=5,
-                    path_prefix=[1, 2],
-                    path_suffix=[9],
-                    excluded_nodes=[5]
-                )
-                
-                # Track all attempted paths
-                attempted_paths = []
-                
-                class TrackingHandler(TestHandler):
-                    def handle_path(self, path, total_paths=None):
-                        attempted_paths.append(path.copy())
-                        return super().handle_path(path, total_paths)
-                
-                tracking_handler = TrackingHandler()
-                pf.add_handler(tracking_handler)
-                
-                success, found_path = pf.dfs()
-                
-                # Should succeed
-                assert success is True
-                assert found_path == [1, 2, 3, 6, 9]
-                
-                # Verify all attempted paths meet constraints
-                for path in attempted_paths:
-                    assert len(path) == 5  # Exact length
-                    assert path[0] == 1 and path[1] == 2  # Prefix
-                    assert path[-1] == 9  # Suffix
-                    assert 5 not in path  # Excluded node
+            mock_config = Config.load_config(config_file)
+
+            pf = PathFinder(
+                grid_size=3,
+                path_min_len=5,
+                path_max_len=5,
+                path_prefix=[1, 2],
+                path_suffix=[9],
+                excluded_nodes=[5]
+            )
+
+            attempted_paths = []
+
+            class TrackingHandler(GapbfTestHandler):
+                def handle_path(self, path, total_paths=None):
+                    attempted_paths.append(path.copy())
+                    return super().handle_path(path, total_paths)
+
+            tracking_handler = TrackingHandler(mock_config, Mock())
+            pf.add_handler(tracking_handler)
+
+            success, found_path = pf.dfs()
+
+            assert success is True
+            assert found_path == ['1', '2', '3', '6', '9']
+
+            for path in attempted_paths:
+                assert len(path) == 5
+                assert path[0] == '1' and path[1] == '2'
+                assert path[-1] == '9'
+                assert '5' not in path
                 
         finally:
             os.unlink(config_file)
@@ -332,8 +311,7 @@ class TestErrorHandling:
         with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
             config_data = {
                 'grid_size': 3,
-                'outputstrings': {'stdout_normal': 'Failed', 'stdout_success': 'Success', 'stdout_error': 'Error'},
-                'paths_log_file_path': './test_paths.csv',
+                'stdout_normal': 'Failed', 'stdout_success': 'Success', 'stdout_error': 'Error',
                 'adb_timeout': 30,
                 'attempt_delay': 100,
                 'total_paths': 100
@@ -342,18 +320,12 @@ class TestErrorHandling:
             config_file = f.name
         
         try:
-            with patch('gapbf.PathHandler.Config.load_config') as mock_load:
-                mock_config = Config.load_config(config_file)
-                mock_load.return_value = mock_config
-                
-                with patch.object(ADBHandler, 'get_attempted_paths', return_value=[]), \
-                     patch('sys.exit') as mock_exit:
-                    
-                    handler = ADBHandler()
-                    handler.handle_path([1, 2, 3])
-                    
-                    # Should exit on subprocess error
-                    mock_exit.assert_called_once_with(1)
+            mock_config = Config.load_config(config_file)
+            database = Mock()
+            database.get_attempted_paths.return_value = set()
+
+            with pytest.raises(Exception, match='ADB not found'):
+                ADBHandler(mock_config, database=database, run_id='run-1', device_id='SERIAL123', output=Mock())
                     
         finally:
             os.unlink(config_file)

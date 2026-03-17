@@ -18,13 +18,9 @@ def sample_config_data():
         'excluded_nodes': [],
         'attempt_delay': 10.0,
         'test_path': [1, 2, 3, 4, 5],
-        'outputstrings': {
-            'stdout_normal': 'Failed to decrypt',
-            'stdout_success': 'Data successfully decrypted',
-            'stdout_error': 'Error occurred'
-        },
-        'paths_log_file_path': './test_paths.csv',
-        'process_log_file_path': './test_process.csv',
+        'stdout_normal': 'Failed to decrypt',
+        'stdout_success': 'Data successfully decrypted',
+        'stdout_error': 'Error occurred',
         'adb_timeout': 30,
         'total_paths': 100
     }
@@ -62,8 +58,6 @@ def mock_config():
     config.stdout_normal = 'Failed to decrypt'
     config.stdout_success = 'Data successfully decrypted'
     config.stdout_error = 'Error occurred'
-    config.paths_log_file_path = './test_paths.csv'
-    config.process_log_file_path = './test_process.csv'
     config.adb_timeout = 30
     config.total_paths = 100
     return config
@@ -97,16 +91,3 @@ def clean_singletons():
     # No cleanup needed anymore
 
 
-@pytest.fixture
-def temp_csv_file():
-    """Fixture that creates a temporary CSV file."""
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False) as f:
-        temp_file = f.name
-    
-    yield temp_file
-    
-    # Cleanup
-    try:
-        os.unlink(temp_file)
-    except FileNotFoundError:
-        pass

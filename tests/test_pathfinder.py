@@ -310,12 +310,8 @@ class TestPathFinderIntegration:
             assert path[-1] == '9'
             assert '5' not in path
 
-    @patch('gapbf.PathFinder.yaml')
-    @patch('builtins.open', mock_open())
-    def test_total_paths_calculation_accuracy(self, mock_yaml):
+    def test_total_paths_calculation_accuracy(self):
         """Test that total paths calculation is accurate."""
-        mock_yaml.safe_load.return_value = {'total_paths': 0}
-        
         pf = PathFinder(
             grid_size=3,
             path_min_len=4,

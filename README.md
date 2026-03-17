@@ -1,50 +1,129 @@
+# GAPBF
+
 [![Pipeline status on GitLab CI][pipeline-badge]][pipeline-link]
 
-# Graph-based Android Pattern Brute Force
-A tool for brute forcing an Android security pattern through TWRP recovery based on a graph-traversal model (credit to https://github.com/psarna).
+GAPBF is a Linux-first Python CLI for brute-forcing Android pattern locks through TWRP recovery using a graph-based path generator.
 
-During a holiday trip my phone did a dive too deep and the screen broke. By the time the screen was fixed I had forgotten what security pattern I had set. But I remembered some parts of my pattern and used Tim's code (timvisee/apbf) and Piotrs help to build a python version of apbf.
-I succeeded to crack my 5x5 pattern in about XX.XX hours (at the time of writing it's still running on a small Linux Mint machine...will update if/when successful).
+It is intended for legitimate device recovery scenarios where you control the device, can boot into TWRP, and want to constrain the search space using partial knowledge of the original unlock pattern.
+
+## Current Status
+
+- Typer-based CLI with Rich output
+- SQLite-backed run history and attempt persistence
+- Resume-aware status reporting
+- Correctness-focused path generation for Android-style pattern movement rules
+- Tested with `pytest` and packaged via `uv`
+
+## Constraints
+
+- Linux-focused workflow
+- Requires `adb` access to a device already booted into TWRP
+- TWRP enforces an effective per-attempt delay; this project does not bypass that limit
+- Large search spaces are still expensive, so partial pattern knowledge matters
+- 6x6 pattern support is still based on an assumed mapping and should be treated as experimental
+
+## How It Works
+
+GAPBF generates valid pattern paths for Android-style grids and evaluates them through one or more handlers:
+
+- `a`: send attempts to TWRP via `adb shell twrp decrypt ...`
+- `p`: print generated paths for inspection/debugging
+- `t`: compare generated paths against a configured test path
+
+Run and attempt metadata is stored in SQLite so interrupted sessions can be inspected later with the CLI.
 
 ## Requirements
-- A pattern lock
-- Android 8.0 (Nougat) or above
-- [TWRP][twrp] recovery
-- [`adb`][adb] (with connectivity to phone in TWRP) [direct platform-tools download link](https://developer.android.com/tools/releases/platform-tools)
-- [`git`][git]
-- [`python`](https://www.python.org/) v3.11.4 or higher
 
-## Speed
-TWRP recovery enforces a hidden timeout of 10 seconds for each pattern attempt,
-all consecutive attempts within that time fail with no warning. Because of this
-a brute force attempt will take a long while when the pattern search space is
-large.
+- Linux
+- Python 3.11 or newer
+- `uv`
+- `adb`
+- A device with pattern lock support and TWRP recovery available
 
-It is highly recommended to constrain the search space as much as possible if
-you partially know the pattern to greatly improve the brute force duration.
+## Installation
 
-This tool does brute forcing on the actual device. A brute force attempt could
-probably be greatly sped up by performing the attempt locally on a computer,
-to work around the timeouts. That's however a lot more work to implement (if
-even possible), so it's outside the scope of this project.
-## Configuration
-In the [`config.yaml`](./config.yaml) file you can tweak a few constants for:
-- Grid size
-- Minimum pattern length
-- Maximum pattern length
-- Maximum path node distance
-- Path prefix
-- Path suffix
-- Nodes to exclude
-- Delay between attempts
-
-### Grid size 
-The grid size is defined by the number of nodes in the grid. As of writing Android supports 3, 4, 5, and 6 sides grids. The default is 3.
-Each grid is repesented by a list of lists. The first list is the top row, the second list is the middle row, and the third list is the bottom row. The nodes are numbered from left to right, top to bottom starting at 1.
-This grid is based on the [note on TWRP decrypt pattern](https://twrp.me/faq/openrecoveryscript.html) and more information here [from Alex Xu's blog](https://blog.alxu.ca/unlocking-large-pattern-encryption-in-twrp.html) and [the TWRP code base](https://github.com/TeamWin/Team-Win-Recovery-Project/blob/android-6.0/gui/patternpassword.cpp#L417)The default grid is a 3x3 grid with nodes 1-9.
-
-It looks like this:
+```bash
+git clone git@github.com:robin-scharf/gapbf.git
+cd gapbf
+uv sync --dev
 ```
+
+## Quick Start
+
+Inspect the available commands:
+
+```bash
+uv run gapbf --help
+```
+
+Check that the device is visible to ADB/TWRP:
+
+```bash
+adb devices
+uv run gapbf check-device
+```
+
+Review current configuration and resume state:
+
+```bash
+uv run gapbf status
+```
+
+Run the brute-force process:
+
+```bash
+uv run gapbf run -m a
+```
+
+Use combined modes when needed:
+
+```bash
+uv run gapbf run -m ap
+uv run gapbf run -m t
+```
+
+Review stored run history:
+
+```bash
+uv run gapbf history
+uv run gapbf history --limit 10
+```
+
+Legacy-compatible invocation is still supported:
+
+```bash
+uv run gapbf -m ap
+```
+
+## Configuration
+
+Runtime configuration lives in [`config.yaml`](./config.yaml).
+
+Important fields include:
+
+- `grid_size`
+- `path_min_length`
+- `path_max_length`
+- `path_max_node_distance`
+- `path_prefix`
+- `path_suffix`
+- `excluded_nodes`
+- `attempt_delay`
+- `adb_timeout`
+- `db_path`
+- `stdout_normal`
+- `stdout_success`
+- `stdout_error`
+
+Constrain the pattern space as aggressively as possible. Prefixes, suffixes, excluded nodes, and realistic path lengths have a much larger effect on runtime than implementation-level optimizations because TWRP remains the throughput bottleneck.
+
+## Grid Mappings
+
+3x3, 4x4, and 5x5 pattern grids are supported explicitly. The 6x6 mapping remains an informed assumption based on available TWRP and community references and is not yet independently verified.
+
+Example 3x3 grid:
+
+```text
 [
     [1, 2, 3],
     [4, 5, 6],
@@ -52,10 +131,9 @@ It looks like this:
 ]
 ```
 
+Example 4x4 grid:
 
-
-The 4x4 grid looks like this:
-```
+```text
 [
     [1, 2, 3, 4],
     [5, 6, 7, 8],
@@ -64,8 +142,9 @@ The 4x4 grid looks like this:
 ]
 ```
 
-The 5x5 grid looks like this:
-```
+Example 5x5 grid:
+
+```text
 [
     [1, 2, 3, 4, 5],
     [6, 7, 8, 9, :],
@@ -74,9 +153,10 @@ The 5x5 grid looks like this:
     [E, F, G, H, I]
 ]
 ```
-**I could not find information on the 6x6 pattern. Feel free to make a commit!**
-My *assumption* is that the 6x6 grid looks like this:
-```
+
+Current 6x6 assumption:
+
+```text
 [
     [1, 2, 3, 4, 5, 6],
     [7, 8, 9, :, ;, <],
@@ -87,88 +167,23 @@ My *assumption* is that the 6x6 grid looks like this:
 ]
 ```
 
+## Development
 
-## Usage
-- Make sure you meet the [requirements](#requirements)
-- Clone the repository, and build the project
-  ```bash
-  # Clone repository
-  git clone git@github.com:robsteward/gapbf.git
-  cd gapbf
-  ```
+Run tests:
 
-- Install required modules
-  ```bash
-  pip3 install PyYAML
-  ```
+```bash
+uv run python -m pytest
+```
 
-- Tweak properties in [`config.yaml`](./config.yaml):
-  ```bash
-  # Edit configuration
-  code config.yaml
-  ```
+The project is packaged from [`src/gapbf`](./src/gapbf) and exposes the `gapbf` console script via [`pyproject.toml`](./pyproject.toml).
 
-  Constrain it as much as possible to reduce pattern search space, which greatly
-  improves brute force speed. See [speed](#speed).
+## Roadmap
 
-- Freshly boot phone into TWRP recovery
-- Make sure your phone is connected through ADB
-  ```bash
-  # Device must be visible in list
-  adb devices
-  ```
-
-- Start brute forcing
-  ```bash
-  # Run tool
-  python3 main.py [-m {{modes}}]
-  ```
-
-- Wait for a successful attempt. **This may take a long while**
-- If the program gets interrupted, check the log file for the last successful attempt
-  ```bash
-  # Check log file
-  cat log.csv
-  ```
-
-## Config
-In the config.yaml file you can tweak a few constants for:
-- Grid size
-- Minimum pattern length
-- Maximum pattern length
-- Path prefix
-- Path suffix
-- Nodes to exclude
-- Delay between attempts
-
-## To Do
-* ~~Update and verify grid neighbors in config.yaml~~
-* ~~Convert config to yaml file~~
-* ~~Move grids to GraphHandler~~
-* ~~Write ConfigHandler class~~
-* ~~Test DummyHandler~~
-* ~~In ADBHandler read attemptedPaths csv to set and check current path against attemptedPaths and skip if found~~
-* ~~Replace grid with predefined substistued grids (3,4,5,6)~~
-* ~~Remove substitue function~~
-* ~~Build CountPathHandler~~
-* ~~Move DFS variable reading/parameters to class level~~
-* ~~Implement testing framework (pytest)~~
-* ~~Write tests (unit test, integration test)~~
-* ~~Order handlers (ADB, iOS, Print, Test, Log)~~
-* Fix logging to file from ADB handler)
-* ~~Fix PrintHandler not showing correct path~~
-* Fix dfs not respecting config min/max path length and excluding nodes, and path prefix/suffix
-* Improve error handling
-* ~~Add documentation~~
-* ~~Verify tests~~
-* ~~Make config loading consistent and efficient (config object, class assignment, vs direct loading)~~
+See [`NEXT_STEPS.md`](./NEXT_STEPS.md) for follow-up work, known gaps, and suggested improvements before broader public distribution.
 
 ## License
-This project is released under the GNU GPL-3.0 license.
-Check out the [LICENSE](LICENSE) file for more information.
 
-[adb]: https://developer.android.com/studio/command-line/adb
-[git]: https://git-scm.com/
-[twrp]: https://twrp.me/
+This project is released under the GNU GPL-3.0 license. See [LICENSE](LICENSE) for details.
+
 [pipeline-badge]: https://gitlab.com/timvisee/apbf/badges/master/pipeline.svg
 [pipeline-link]: https://gitlab.com/timvisee/apbf/pipelines
