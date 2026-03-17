@@ -23,7 +23,18 @@ Recommended checks:
 - Confirm `gapbf status` reports meaningful resume information across interrupted runs
 - Confirm the configured `stdout_*` match strings align with the specific TWRP build in use
 
-### 2. 6x6 support is still provisional
+### 2. Database deduplication can be made cheaper and more direct
+
+The current persistence layer tracks attempts well enough for resume and history, but a future revision should make duplicate-attempt checks depend on the smallest piece of information that actually matters: device plus tested path.
+
+Recommended follow-up:
+
+- Add a stable lookup key or hash derived from `device_id` and the attempted path string
+- Use that key to answer the operational question `has this exact path already been tested on this exact device?`
+- Store and surface the prior result for that attempt so retries can be skipped or explained immediately
+- Keep config snapshots for audit/history, but do not require full config fingerprint matches for duplicate-attempt detection when the tested path is identical
+
+### 3. 6x6 support is still provisional
 
 The 6x6 node mapping is currently based on an assumption, not a verified reference implementation.
 
@@ -32,7 +43,7 @@ Recommended follow-up:
 - Validate the character mapping against real TWRP behavior or source references
 - Add an explicit verification note or test fixture once the mapping is confirmed
 
-### 3. CLI ergonomics can still improve
+### 4. CLI ergonomics can still improve
 
 The CLI is now serviceable and much cleaner than before, but it is not yet fully polished.
 
@@ -42,7 +53,7 @@ Recommended follow-up:
 - Consider a dedicated `config validate` or `config show` command
 - Consider a clearer distinction between operator-facing output and debug logging
 
-### 4. Documentation can be expanded further
+### 5. Documentation can be expanded further
 
 The README now reflects the current public state, but deeper operational docs would still help.
 
@@ -52,7 +63,7 @@ Recommended follow-up:
 - Add example recovery workflows for 3x3, 4x4, and 5x5 devices
 - Add notes on database location, cleanup, and backup
 
-### 5. Packaging and release work remains
+### 6. Packaging and release work remains
 
 The project is installable and runnable via `uv`, but it is not yet fully release-shaped.
 
