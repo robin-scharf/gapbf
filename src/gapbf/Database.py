@@ -7,11 +7,11 @@ import json
 import sqlite3
 import subprocess
 import uuid
-from typing import cast
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from threading import Lock
+from typing import cast
 
 from .Config import Config
 
