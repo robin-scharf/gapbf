@@ -1,40 +1,41 @@
-import pytest
-import tempfile
 import os
+import tempfile
+from unittest.mock import Mock
+
+import pytest
 import yaml
-from unittest.mock import Mock, patch
 
 
 @pytest.fixture
 def sample_config_data():
     """Fixture providing sample configuration data."""
     return {
-        'grid_size': 3,
-        'path_min_length': 4,
-        'path_max_length': 9,
-        'path_max_node_distance': 1,
-        'path_prefix': [],
-        'path_suffix': [],
-        'excluded_nodes': [],
-        'attempt_delay': 10.0,
-        'test_path': [1, 2, 3, 4, 5],
-        'stdout_normal': 'Failed to decrypt',
-        'stdout_success': 'Data successfully decrypted',
-        'stdout_error': 'Error occurred',
-        'adb_timeout': 30,
-        'total_paths': 100
+        "grid_size": 3,
+        "path_min_length": 4,
+        "path_max_length": 9,
+        "path_max_node_distance": 1,
+        "path_prefix": [],
+        "path_suffix": [],
+        "excluded_nodes": [],
+        "attempt_delay": 10.0,
+        "test_path": [1, 2, 3, 4, 5],
+        "stdout_normal": "Failed to decrypt",
+        "stdout_success": "Data successfully decrypted",
+        "stdout_error": "Error occurred",
+        "adb_timeout": 30,
+        "total_paths": 100,
     }
 
 
 @pytest.fixture
 def temp_config_file(sample_config_data):
     """Fixture that creates a temporary config file."""
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
         yaml.dump(sample_config_data, f)
         temp_file = f.name
-    
+
     yield temp_file
-    
+
     # Cleanup
     try:
         os.unlink(temp_file)
@@ -55,9 +56,9 @@ def mock_config():
     config.excluded_nodes = []
     config.attempt_delay = 10.0
     config.test_path = [1, 2, 3, 4, 5]
-    config.stdout_normal = 'Failed to decrypt'
-    config.stdout_success = 'Data successfully decrypted'
-    config.stdout_error = 'Error occurred'
+    config.stdout_normal = "Failed to decrypt"
+    config.stdout_success = "Data successfully decrypted"
+    config.stdout_error = "Error occurred"
     config.adb_timeout = 30
     config.total_paths = 100
     return config
@@ -68,8 +69,8 @@ def mock_successful_subprocess_result():
     """Fixture providing a mock successful subprocess result."""
     result = Mock()
     result.returncode = 0
-    result.stdout = 'Data successfully decrypted'
-    result.stderr = ''
+    result.stdout = "Data successfully decrypted"
+    result.stderr = ""
     return result
 
 
@@ -78,8 +79,8 @@ def mock_failed_subprocess_result():
     """Fixture providing a mock failed subprocess result."""
     result = Mock()
     result.returncode = 0
-    result.stdout = 'Failed to decrypt'
-    result.stderr = ''
+    result.stdout = "Failed to decrypt"
+    result.stderr = ""
     return result
 
 
@@ -89,5 +90,3 @@ def clean_singletons():
     # No longer need to reset Logger singleton since we removed it
     yield
     # No cleanup needed anymore
-
-
