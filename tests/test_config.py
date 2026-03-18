@@ -49,6 +49,9 @@ class TestConfig:
         with pytest.raises(ValidationError, match="path_min_length"):
             Config(path_min_length="invalid")
 
+        with pytest.raises(ValidationError, match="path_min_length"):
+            Config(path_min_length=3)
+
         # Test invalid path_max_length type
         with pytest.raises(ValidationError, match="path_max_length"):
             Config(path_max_length="invalid")
@@ -94,6 +97,18 @@ total_paths: 100
             assert config.attempt_delay == 10.5
             assert config.stdout_normal == "Failed to decrypt"
             assert config.stdout_success == "Data successfully decrypted"
+
+    def test_load_config_rejects_path_min_length_below_android_minimum(self):
+        """Android pattern lock requires at least 4 nodes regardless of grid size."""
+        yaml_content = """
+grid_size: 6
+path_min_length: 3
+path_max_length: 9
+"""
+
+        with patch("builtins.open", mock_open(read_data=yaml_content)):
+            with pytest.raises(ValueError, match="path_min_length"):
+                Config.load_config("test.yaml")
 
     def test_load_config_file_not_found(self):
         """Test config loading when file doesn't exist."""

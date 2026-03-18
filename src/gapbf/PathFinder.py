@@ -160,8 +160,15 @@ class PathFinder:
     def _is_move_legal(self, start: str, end: str, visited: set[str]) -> bool:
         if start == end or end in visited or end in self._excluded_nodes:
             return False
+        if not self._is_within_max_node_distance(start, end):
+            return False
         blockers = self._intermediate_nodes[(start, end)]
         return all(blocker in visited for blocker in blockers)
+
+    def _is_within_max_node_distance(self, start: str, end: str) -> bool:
+        start_x, start_y = self._coordinates[start]
+        end_x, end_y = self._coordinates[end]
+        return max(abs(end_x - start_x), abs(end_y - start_y)) <= self._path_max_node_distance
 
     def _legal_moves(self, node: str, visited: set[str]) -> list[str]:
         return [

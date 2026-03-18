@@ -3,19 +3,14 @@ attempt_delay: 10.1
 echo_commands: true
 db_path: ~/.gapbf/gapbf.db
 excluded_nodes: []
-grid_size: 5
+grid_size: 3
 stdout_error: ''
 stdout_normal: Failed to decrypt
 stdout_success: Data successfully decrypted
-path_max_length: 20
+path_max_length: 9
 path_max_node_distance: 1
 path_min_length: 4
 path_prefix: []
 path_suffix: []
-test_path:
-- 1
-- 2
-- 3
-- 4
-- 5
+test_path: []
 total_paths: 0

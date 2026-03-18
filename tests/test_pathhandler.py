@@ -74,7 +74,7 @@ class TestADBHandler:
 
         assert success is False
         assert path is None
-        database.log_attempt.assert_called_once()
+        database.log_attempt.assert_not_called()
         assert subprocess_run.call_count == 1
         reporter.show_adb_skip.assert_called_once()
 
@@ -142,6 +142,37 @@ class TestADBHandler:
         assert path is None
         database.log_attempt.assert_called_once()
         reporter.show_adb_timeout.assert_called_once()
+
+    def test_handle_path_uses_configured_error_marker(self, mocker):
+        config = Config(
+            grid_size=3,
+            path_min_length=4,
+            path_max_length=9,
+            stdout_normal="Failed",
+            stdout_success="Success",
+            stdout_error="Error occurred",
+            adb_timeout=30,
+            echo_commands=False,
+        )
+        database = mocker.Mock()
+        database.get_attempted_paths.return_value = set()
+        start_result = mocker.Mock(returncode=0, stdout="", stderr="")
+        decrypt_result = mocker.Mock(returncode=0, stdout="Error occurred", stderr="")
+        mocker.patch(
+            "gapbf.PathHandler.subprocess.run", side_effect=[start_result, decrypt_result]
+        )
+        reporter = mocker.Mock()
+
+        handler = ADBHandler(
+            config, database=database, run_id="run-1", device_id="SERIAL123", output=reporter
+        )
+        success, path = handler.handle_path(["1", "2", "3"], total_paths=100)
+
+        assert success is False
+        assert path is None
+        database.log_attempt.assert_called_once()
+        assert database.log_attempt.call_args.args[3] == "configured_error"
+        reporter.show_adb_error.assert_called_once()
 
 
 class TestTestHandler:

@@ -1,6 +1,13 @@
 repos:
   - repo: local
     hooks:
+      - id: line-length-check
+        name: line length check
+        entry: uv run python scripts/check_line_length.py
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+
       - id: ruff-check
         name: ruff check
         entry: uv run ruff check .

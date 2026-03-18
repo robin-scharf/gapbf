@@ -48,9 +48,9 @@ class Config(BaseModel):
     )
 
     config_file_path: str = ""
-    grid_size: int = Field(default=0, ge=3, le=6)
-    path_min_length: int = Field(default=4, ge=1)
-    path_max_length: int = Field(default=0, ge=1)
+    grid_size: int = Field(default=3, ge=3, le=6)
+    path_min_length: int = Field(default=4, ge=4)
+    path_max_length: int = Field(default=9, ge=1)
     path_max_node_distance: int = Field(default=1, ge=1)
     path_prefix: list[str] = Field(default_factory=list)
     path_suffix: list[str] = Field(default_factory=list)
@@ -99,6 +99,14 @@ class Config(BaseModel):
             raise ValueError(
                 "path_max_length "
                 f"({self.path_max_length}) cannot exceed available nodes ({len(valid_nodes)})"
+            )
+
+        max_supported_distance = self.grid_size - 1
+        if self.path_max_node_distance > max_supported_distance:
+            raise ValueError(
+                "path_max_node_distance "
+                f"({self.path_max_node_distance}) cannot exceed {max_supported_distance} "
+                f"for a {self.grid_size}x{self.grid_size} grid"
             )
 
         for field_name in ("path_prefix", "path_suffix", "excluded_nodes", "test_path"):

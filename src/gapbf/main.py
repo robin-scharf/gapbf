@@ -7,9 +7,8 @@ import time
 import tty
 from concurrent.futures import Future
 from contextlib import AbstractContextManager
-from dataclasses import dataclass, field
 from itertools import islice
-from threading import Lock, Thread
+from threading import Thread
 from typing import Any, Callable, TypedDict, TypeVar
 
 import typer
@@ -25,6 +24,15 @@ from .Logging import setup_logging
 from .Output import Output
 from .PathFinder import PathFinder
 from .PathHandler import ADBHandler, PathHandler, PrintHandler, TestHandler
+from .runtime import (
+    RunController,
+    RunSession,
+    RunState,
+    UserRequestedStop,
+    create_path_finder,
+    load_resume_context,
+    open_run_session,
+)
 
 ResultT = TypeVar("ResultT")
 
@@ -32,26 +40,6 @@ ResultT = TypeVar("ResultT")
 class HandlerSpec(TypedDict):
     class_: type[PathHandler]
     help: str
-
-
-class LiveRunSnapshot(TypedDict):
-    config: Config
-    mode: str
-    total_paths: int | None
-    total_paths_state: str
-    paths_tested: int
-    current_path: str
-    last_feedback: str
-    search_status: str
-    device_id: str | None
-    resume_info: ResumeInfo | None
-    started_at: float
-    successful_path: str | None
-    error_message: str | None
-    paused: bool
-    show_help: bool
-    quit_requested: bool
-    key_input_enabled: bool
 
 
 app = typer.Typer(
@@ -70,10 +58,6 @@ handler_classes: dict[str, HandlerSpec] = {
 }
 
 SPINNER_FRAMES = "|/-\\"
-
-
-class UserRequestedStop(Exception):
-    """Raised when the operator asks the live run to stop."""
 
 
 class TerminalKeyReader(AbstractContextManager["TerminalKeyReader"]):
@@ -119,129 +103,30 @@ class TerminalKeyReader(AbstractContextManager["TerminalKeyReader"]):
             return None
 
 
-@dataclass(slots=True)
-class LiveRunState:
-    config: Config
-    mode: str
-    total_paths: int | None = None
-    total_paths_state: str = "unknown"
-    paths_tested: int = 0
-    current_path: str = "-"
-    last_feedback: str = "Waiting to start"
-    search_status: str = "Preparing"
-    device_id: str | None = None
-    resume_info: ResumeInfo | None = None
-    started_at: float = field(default_factory=time.monotonic)
-    successful_path: str | None = None
-    error_message: str | None = None
-    paused: bool = False
-    show_help: bool = False
-    quit_requested: bool = False
-    key_input_enabled: bool = False
-    _lock: Lock = field(default_factory=Lock, repr=False)
+LiveRunSnapshot = TypedDict(
+    "LiveRunSnapshot",
+    {
+        "config": Config,
+        "mode": str,
+        "total_paths": int | None,
+        "total_paths_state": str,
+        "paths_tested": int,
+        "current_path": str,
+        "last_feedback": str,
+        "search_status": str,
+        "device_id": str | None,
+        "resume_info": ResumeInfo | None,
+        "started_at": float,
+        "successful_path": str | None,
+        "error_message": str | None,
+        "paused": bool,
+        "show_help": bool,
+        "quit_requested": bool,
+        "key_input_enabled": bool,
+    },
+)
 
-    def snapshot(self) -> LiveRunSnapshot:
-        with self._lock:
-            return {
-                "config": self.config,
-                "mode": self.mode,
-                "total_paths": self.total_paths,
-                "total_paths_state": self.total_paths_state,
-                "paths_tested": self.paths_tested,
-                "current_path": self.current_path,
-                "last_feedback": self.last_feedback,
-                "search_status": self.search_status,
-                "device_id": self.device_id,
-                "resume_info": self.resume_info,
-                "started_at": self.started_at,
-                "successful_path": self.successful_path,
-                "error_message": self.error_message,
-                "paused": self.paused,
-                "show_help": self.show_help,
-                "quit_requested": self.quit_requested,
-                "key_input_enabled": self.key_input_enabled,
-            }
-
-    def set_total_paths(self, total_paths: int) -> None:
-        with self._lock:
-            self.total_paths = total_paths
-            self.total_paths_state = "ready"
-
-    def mark_total_paths_counting(self) -> None:
-        with self._lock:
-            if self.total_paths is None:
-                self.total_paths_state = "counting"
-
-    def mark_total_paths_unavailable(self, message: str) -> None:
-        with self._lock:
-            self.total_paths = None
-            self.total_paths_state = "error"
-            self.last_feedback = message
-
-    def set_search_status(self, status: str) -> None:
-        with self._lock:
-            self.search_status = status
-
-    def set_current_path(self, path: list[str] | str) -> None:
-        with self._lock:
-            self.current_path = "".join(path) if isinstance(path, list) else path
-
-    def record_attempt(self, path: list[str]) -> None:
-        with self._lock:
-            self.paths_tested += 1
-            self.current_path = "".join(path)
-
-    def set_feedback(self, message: str) -> None:
-        with self._lock:
-            self.last_feedback = message
-
-    def attach_resume_info(self, resume_info: ResumeInfo | None) -> None:
-        with self._lock:
-            self.resume_info = resume_info
-
-    def attach_device_id(self, device_id: str | None) -> None:
-        with self._lock:
-            self.device_id = device_id
-
-    def mark_success(self, path: list[str] | None) -> None:
-        with self._lock:
-            self.search_status = "Pattern found"
-            self.successful_path = "".join(path) if path else None
-
-    def mark_completed(self) -> None:
-        with self._lock:
-            if self.search_status != "Pattern found":
-                self.search_status = "Completed"
-
-    def mark_interrupted(self) -> None:
-        with self._lock:
-            self.search_status = "Interrupted"
-
-    def mark_error(self, message: str) -> None:
-        with self._lock:
-            self.search_status = "Error"
-            self.error_message = message
-            self.last_feedback = message
-
-    def set_key_input_enabled(self, enabled: bool) -> None:
-        with self._lock:
-            self.key_input_enabled = enabled
-
-    def toggle_help(self) -> bool:
-        with self._lock:
-            self.show_help = not self.show_help
-            return self.show_help
-
-    def toggle_pause(self) -> bool:
-        with self._lock:
-            self.paused = not self.paused
-            self.search_status = "Paused" if self.paused else "Running"
-            return self.paused
-
-    def request_quit(self) -> None:
-        with self._lock:
-            self.quit_requested = True
-            self.search_status = "Stopping"
+LiveRunState = RunState
 
 
 def _run_in_background(
@@ -466,15 +351,7 @@ def _load_config(config_path: str, logger: logging.Logger) -> Config:
 
 def _build_path_finder(config: Config, logger: logging.Logger) -> PathFinder:
     try:
-        path_finder = PathFinder(
-            config.grid_size,
-            config.path_min_length,
-            config.path_max_length,
-            config.path_max_node_distance,
-            config.path_prefix,
-            config.path_suffix,
-            config.excluded_nodes,
-        )
+        path_finder = create_path_finder(config)
         logger.info("Initialized PathFinder")
         return path_finder
     except Exception as error:
@@ -538,45 +415,6 @@ def _print_resume_summary(resume_info: ResumeInfo) -> None:
     )
 
 
-def _add_handlers(
-    path_finder: PathFinder,
-    config: Config,
-    mode: str,
-    logger: logging.Logger,
-    database: RunDatabase | None,
-    run_id: str | None,
-    device_id: str | None,
-    output_adapter: Output,
-) -> None:
-    for mode_key in mode:
-        handler_class = handler_classes[mode_key]["class_"]
-        handler: PathHandler
-        try:
-            if handler_class is PrintHandler:
-                handler = PrintHandler(config, path_finder.grid_nodes, output_adapter)
-            elif handler_class is ADBHandler:
-                if database is None or run_id is None or device_id is None:
-                    raise RuntimeError(
-                        "ADB mode requires an initialized run database and device id"
-                    )
-                handler = ADBHandler(
-                    config,
-                    database=database,
-                    run_id=run_id,
-                    device_id=device_id,
-                    output=output_adapter,
-                )
-            elif handler_class is TestHandler:
-                handler = TestHandler(config, output_adapter)
-            else:
-                raise RuntimeError(f"Unsupported handler class: {handler_class.__name__}")
-            path_finder.add_handler(handler)
-            logger.info(f"Added handler: {handler_class.__name__}")
-        except Exception as error:
-            logger.error(f"Failed to initialize {handler_class.__name__}: {error}")
-            raise typer.Exit(code=1) from error
-
-
 def _print_run_summary(
     config: Config,
     mode: str,
@@ -607,37 +445,17 @@ def _print_run_summary(
 def _execute_search(
     path_finder: PathFinder,
     logger: logging.Logger,
-    database: RunDatabase | None,
-    run_id: str | None,
+    session: RunSession,
     db_path: str,
     state: LiveRunState,
     total_paths_future: Future[int] | None,
 ) -> None:
     logger.info("Starting brute force search")
     state.set_search_status("Running")
+    controller = RunController(state)
 
     def search_worker() -> tuple[bool, list[str]]:
-        for path in path_finder:
-            while True:
-                snapshot = state.snapshot()
-                if snapshot["quit_requested"]:
-                    raise UserRequestedStop()
-                if not snapshot["paused"]:
-                    break
-                time.sleep(0.05)
-
-            state.set_current_path(path)
-            result_success, result_path = path_finder.process_path(
-                path, state.snapshot()["total_paths"]
-            )
-            state.record_attempt(path)
-            if result_success:
-                resolved_path = result_path or path
-                state.mark_success(resolved_path)
-                state.set_feedback(f"Pattern found: {''.join(resolved_path)}")
-                return True, resolved_path
-
-        return False, []
+        return controller.execute_search(path_finder)
 
     search_future = _run_in_background(search_worker)
     start_time = time.monotonic()
@@ -655,8 +473,8 @@ def _execute_search(
         elapsed_time = time.monotonic() - start_time
 
         if success:
-            if database is not None and run_id is not None and successful_path is not None:
-                database.finish_run(run_id, "success", "".join(successful_path))
+            if successful_path is not None:
+                session.finish("success", successful_path)
             console.print(_render_live_dashboard(state, "GAPBF Live Run", allow_pause=True))
             console.print(f"Success: pattern found {successful_path}")
             console.print(f"Elapsed: {_format_elapsed(elapsed_time)}")
@@ -664,20 +482,18 @@ def _execute_search(
             return
 
         state.mark_completed()
-        if database is not None and run_id is not None:
-            database.finish_run(run_id, "completed")
+        session.finish("completed")
         console.print(_render_live_dashboard(state, "GAPBF Live Run", allow_pause=True))
         console.print("Search completed without finding a successful pattern")
         console.print(f"Elapsed: {_format_elapsed(elapsed_time)}")
-        if database is not None:
+        if session.database is not None:
             console.print(f"History: {db_path}")
         logger.info(
             f"Search completed without finding successful pattern after {elapsed_time:.2f}s"
         )
     except UserRequestedStop:
         state.mark_interrupted()
-        if database is not None and run_id is not None:
-            database.finish_run(run_id, "interrupted")
+        session.finish("interrupted")
         elapsed_time = time.monotonic() - start_time
         console.print(_render_live_dashboard(state, "GAPBF Live Run", allow_pause=True))
         console.print("Search stopped by operator request")
@@ -686,8 +502,7 @@ def _execute_search(
         raise typer.Exit(code=0)
     except KeyboardInterrupt:
         state.mark_interrupted()
-        if database is not None and run_id is not None:
-            database.finish_run(run_id, "interrupted")
+        session.finish("interrupted")
         elapsed_time = time.monotonic() - start_time
         console.print(_render_live_dashboard(state, "GAPBF Live Run", allow_pause=True))
         console.print("Search interrupted by user")
@@ -698,8 +513,7 @@ def _execute_search(
         raise
     except Exception as error:
         state.mark_error(str(error))
-        if database is not None and run_id is not None:
-            database.finish_run(run_id, "error")
+        session.finish("error")
         logger.error(f"Error during search: {error}", exc_info=True)
         raise typer.Exit(code=1) from error
 
@@ -750,54 +564,41 @@ def _run_command(
     setup_logging(log_level, log_file)
     logger = logging.getLogger("gapbf")
     config = _load_config(config_path, logger)
-    path_finder = _build_path_finder(config, logger)
-    total_paths = _resolve_total_paths(config, path_finder, logger, calculate=False)
-    state = LiveRunState(config=config, mode=mode, total_paths=total_paths, paths_tested=0)
-    if total_paths is not None:
-        state.total_paths_state = "ready"
-
-    database = None
-    run_info = None
-    resume_info = None
-    if "a" in mode and not dry_run:
-        try:
-            database = RunDatabase(config.db_path)
-            device_id = detect_device_id(config.adb_timeout)
-            resume_info = database.get_resume_info(config, device_id)
-            run_info = database.create_run(config, device_id, mode)
-            state.attach_device_id(device_id)
-            state.attach_resume_info(resume_info)
-            state.paths_tested = resume_info.attempted_count
-            logger.info(f"Created run {run_info.run_id} for device {run_info.device_id}")
-        except Exception as error:
-            logger.error(f"Failed to initialize SQLite run logging: {error}")
-            raise typer.Exit(code=1) from error
 
     if dry_run:
+        path_finder = _build_path_finder(config, logger)
+        total_paths = _resolve_total_paths(config, path_finder, logger, calculate=False)
         _print_dry_run_summary(config, total_paths, path_finder)
         return
 
-    _add_handlers(
-        path_finder,
-        config,
-        mode,
-        logger,
-        database,
-        run_info.run_id if run_info else None,
-        run_info.device_id if run_info else None,
-        Output(
-            console,
-            silent=True,
-            event_sink=lambda _event, payload: state.set_feedback(
-                str(payload.get("message", _event))
-            ),
-        ),
+    state = LiveRunState(config=config, mode=mode, total_paths=None, paths_tested=0)
+    output_adapter = Output(
+        console,
+        silent=True,
+        event_sink=lambda _event, payload: state.set_feedback(str(payload.get("message", _event))),
     )
-    if resume_info is not None and resume_info.attempted_count > 0:
-        _print_resume_summary(resume_info)
-    _print_run_summary(
-        config, mode, total_paths, resume_info, run_info.device_id if run_info else None
-    )
+    try:
+        session = open_run_session(config, mode, output_adapter)
+        logger.info(
+            "Prepared run session"
+            f" for mode={mode}"
+            f" device={session.device_id or 'None'}"
+            f" run_id={session.run_id or 'None'}"
+        )
+    except Exception as error:
+        logger.error(f"Failed to initialize run session: {error}")
+        raise typer.Exit(code=1) from error
+
+    path_finder = session.path_finder
+    total_paths = _resolve_total_paths(config, path_finder, logger, calculate=False)
+    state.total_paths = total_paths
+    if total_paths is not None:
+        state.total_paths_state = "ready"
+    session.attach_state(state)
+
+    if session.resume_info is not None and session.resume_info.attempted_count > 0:
+        _print_resume_summary(session.resume_info)
+    _print_run_summary(config, mode, total_paths, session.resume_info, session.device_id)
 
     total_paths_future = None
     if total_paths is None:
@@ -808,15 +609,13 @@ def _run_command(
         _execute_search(
             path_finder,
             logger,
-            database,
-            run_info.run_id if run_info else None,
+            session,
             config.db_path,
             state,
             total_paths_future,
         )
     finally:
-        if database is not None:
-            database.close()
+        session.close()
 
 
 @app.callback(invoke_without_command=True)
@@ -936,16 +735,12 @@ def status_command(
     resume_info = None
     if "a" in mode:
         try:
-            device_id = detect_device_id(run_config.adb_timeout)
+            resume_context = load_resume_context(run_config)
+            device_id = resume_context.device_id
+            resume_info = resume_context.resume_info
         except RuntimeError as error:
             console.print(f"Device check failed: {error}")
             raise typer.Exit(code=1) from error
-
-        database = RunDatabase(run_config.db_path)
-        try:
-            resume_info = database.get_resume_info(run_config, device_id)
-        finally:
-            database.close()
 
     _show_status_dashboard(
         run_config, mode, device_id, resume_info, total_paths, total_paths_future
@@ -963,6 +758,8 @@ def web_command(
     """Serve the local web UI for controlling and monitoring GAPBF."""
     from .web import serve_web_ui
 
+    console.print(f"Serving GAPBF web UI at http://{host}:{port}")
+    console.print("Press Ctrl+C to stop the server")
     serve_web_ui(host=host, port=port, config_path=config, log_level=log_level, log_file=log_file)
 
 

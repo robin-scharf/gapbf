@@ -74,7 +74,7 @@ class TestFullIntegration:
                 "path_max_length": 5,
                 "path_prefix": [1],
                 "path_suffix": [5],
-                "test_path": [1, 2, 3, 4, 5],
+                "test_path": [1, 2, 3, 6, 5],
                 "excluded_nodes": [],
                 "stdout_normal": "Failed",
                 "stdout_success": "Success",
@@ -102,7 +102,7 @@ class TestFullIntegration:
             success, found_path = pf.dfs()
 
             assert success is True
-            assert found_path == ["1", "2", "3", "4", "5"]
+            assert found_path == ["1", "2", "3", "6", "5"]
 
         finally:
             os.unlink(config_file)
@@ -143,7 +143,7 @@ class TestFullIntegration:
                     result.stdout = ""
                     result.stderr = ""
                     return result
-                if "decrypt" in command and "1234" in command:
+                if "decrypt" in command and "1236" in command:
                     result = Mock()
                     result.returncode = 0
                     result.stdout = "Data successfully decrypted"
@@ -179,9 +179,9 @@ class TestFullIntegration:
             success, found_path = pf.dfs()
 
             assert success is True
-            assert found_path == ["1", "2", "3", "4"]
+            assert found_path == ["1", "2", "3", "6"]
             logged = database.get_attempted_paths(mock_config, "SERIAL123")
-            assert "1234" in logged
+            assert "1236" in logged
             database.close()
 
         finally:
@@ -195,7 +195,7 @@ class TestFullIntegration:
                 "grid_size": 3,
                 "path_min_length": 4,
                 "path_max_length": 4,
-                "test_path": [1, 2, 3, 4],
+                "test_path": [1, 2, 3, 6],
                 "path_prefix": [],
                 "path_suffix": [],
                 "excluded_nodes": [],
@@ -228,7 +228,7 @@ class TestFullIntegration:
             success, found_path = pf.dfs()
 
             assert success is True
-            assert found_path == ["1", "2", "3", "4"]
+            assert found_path == ["1", "2", "3", "6"]
 
         finally:
             os.unlink(config_file)

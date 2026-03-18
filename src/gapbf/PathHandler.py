@@ -2,10 +2,34 @@ import logging
 import subprocess
 import time
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 
 from .Config import Config
 from .Database import RunDatabase
 from .Output import Output
+
+
+@dataclass(frozen=True)
+class ADBResponseClassification:
+    classification: str
+    response: str
+    stdout: str
+    stderr: str
+    returncode: int
+
+
+def _format_response(stdout: str, stderr: str) -> str:
+    stdout_safe = stdout.replace("\n", "\\n")
+    stderr_safe = stderr.replace("\n", "\\n")
+    if stdout_safe and stderr_safe:
+        return f"stdout={stdout_safe}; stderr={stderr_safe}"
+    if stderr_safe:
+        return f"stderr={stderr_safe}"
+    return stdout_safe
+
+
+def _marker_matches(marker: str, text: str) -> bool:
+    return bool(marker) and marker in text
 
 
 class PathHandler(ABC):
@@ -66,14 +90,6 @@ class ADBHandler(PathHandler):
         if attempt_key in self.attempted_paths:
             percentage = (self.current_path_number / total_paths * 100) if total_paths else 0
             self.output.show_adb_skip(self.current_path_number, total_paths, percentage, path)
-            self.database.log_attempt(
-                self.run_id,
-                attempt_key,
-                "Skipped because the attempt already exists in the run history",
-                "skipped",
-                None,
-                0.0,
-            )
             self.logger.info(f"Skipping previously attempted path: {path}")
             return False, None
 
@@ -108,7 +124,10 @@ class ADBHandler(PathHandler):
                 "timeout",
                 -1,
                 (time.perf_counter() - started_at) * 1000,
+                stdout="",
+                stderr="",
             )
+            self.attempted_paths.add(attempt_key)
             self.logger.error(
                 f"ADB command timed out after {self.config.adb_timeout}s for path: {path}"
             )
@@ -119,41 +138,37 @@ class ADBHandler(PathHandler):
                 self.run_id,
                 attempt_key,
                 f"Execution error: {error}",
-                "error",
+                "transport_error",
                 -2,
                 (time.perf_counter() - started_at) * 1000,
+                stdout="",
+                stderr=str(error),
             )
+            self.attempted_paths.add(attempt_key)
             self.logger.error(f"Failed to execute ADB command: {error}")
             self.output.show_adb_error(self.current_path_number, total_paths, str(error))
             return False, None
 
-        stdout_safe = result.stdout.replace("\n", "\\n")
-        stderr_safe = result.stderr.replace("\n", "\\n") if result.stderr else ""
-        response = stdout_safe if not stderr_safe else f"stdout={stdout_safe}; stderr={stderr_safe}"
+        classified_result = self._classify_result(result)
         duration_ms = (time.perf_counter() - started_at) * 1000
         self.attempted_paths.add(attempt_key)
 
-        if result.returncode == 0 and self.config.stdout_success in result.stdout:
-            self.database.log_attempt(
-                self.run_id,
-                attempt_key,
-                response,
-                "success",
-                result.returncode,
-                duration_ms,
-            )
+        self.database.log_attempt(
+            self.run_id,
+            attempt_key,
+            classified_result.response,
+            classified_result.classification,
+            classified_result.returncode,
+            duration_ms,
+            stdout=classified_result.stdout,
+            stderr=classified_result.stderr,
+        )
+
+        if classified_result.classification == "success":
             self.output.show_adb_success(path)
             return True, path
 
-        if result.returncode == 0 and self.config.stdout_normal in result.stdout:
-            self.database.log_attempt(
-                self.run_id,
-                attempt_key,
-                response,
-                "normal_failure",
-                result.returncode,
-                duration_ms,
-            )
+        if classified_result.classification == "normal_failure":
             self.output.show_adb_failure(
                 self.current_path_number,
                 total_paths,
@@ -165,19 +180,48 @@ class ADBHandler(PathHandler):
                 time.sleep(self.config.attempt_delay)
             return False, None
 
-        self.database.log_attempt(
-            self.run_id,
-            attempt_key,
-            response,
-            "unexpected_response",
-            result.returncode,
-            duration_ms,
-        )
+        if classified_result.classification == "configured_error":
+            error_message = (
+                classified_result.stderr
+                or classified_result.stdout
+                or "Configured error"
+            )
+            self.logger.error(f"ADB error marker matched for path {path}: {error_message}")
+            self.output.show_adb_error(self.current_path_number, total_paths, error_message)
+            return False, None
+
         self.logger.error(
-            f"Unexpected ADB response: returncode={result.returncode}, stderr={result.stderr}"
+            "Unexpected ADB response: "
+            f"returncode={result.returncode}, stdout={result.stdout!r}, stderr={result.stderr!r}"
         )
         self.output.show_adb_unexpected(self.current_path_number, total_paths)
         return False, None
+
+    def _classify_result(
+        self, result: subprocess.CompletedProcess[str]
+    ) -> ADBResponseClassification:
+        stdout = result.stdout or ""
+        stderr = result.stderr or ""
+        response = _format_response(stdout, stderr)
+
+        if _marker_matches(self.config.stdout_error, stdout) or _marker_matches(
+            self.config.stdout_error, stderr
+        ):
+            classification = "configured_error"
+        elif _marker_matches(self.config.stdout_success, stdout):
+            classification = "success"
+        elif _marker_matches(self.config.stdout_normal, stdout):
+            classification = "normal_failure"
+        else:
+            classification = "unknown_response"
+
+        return ADBResponseClassification(
+            classification=classification,
+            response=response,
+            stdout=stdout,
+            stderr=stderr,
+            returncode=result.returncode,
+        )
 
 
 class TestHandler(PathHandler):

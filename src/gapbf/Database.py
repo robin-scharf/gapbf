@@ -8,7 +8,7 @@ import sqlite3
 import subprocess
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from threading import Lock
 from typing import cast
@@ -104,10 +104,12 @@ class RunDatabase:
                 CREATE TABLE IF NOT EXISTS runs (
                     run_id TEXT PRIMARY KEY,
                     started_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
                     finished_at TEXT,
                     status TEXT NOT NULL,
                     mode TEXT NOT NULL,
                     device_id TEXT NOT NULL,
+                    grid_size INTEGER NOT NULL DEFAULT 3,
                     config_snapshot TEXT NOT NULL,
                     config_fingerprint TEXT NOT NULL,
                     successful_attempt TEXT
@@ -116,12 +118,19 @@ class RunDatabase:
                 CREATE INDEX IF NOT EXISTS idx_runs_device_fingerprint
                 ON runs (device_id, config_fingerprint);
 
+                CREATE INDEX IF NOT EXISTS idx_runs_device_grid_status
+                ON runs (device_id, grid_size, status);
+
                 CREATE TABLE IF NOT EXISTS attempts (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     run_id TEXT NOT NULL,
                     timestamp TEXT NOT NULL,
+                    device_id TEXT NOT NULL DEFAULT '',
+                    grid_size INTEGER NOT NULL DEFAULT 3,
                     attempt TEXT NOT NULL,
                     response TEXT NOT NULL,
+                    stdout TEXT NOT NULL DEFAULT '',
+                    stderr TEXT NOT NULL DEFAULT '',
                     result_classification TEXT NOT NULL,
                     returncode INTEGER,
                     duration_ms REAL NOT NULL,
@@ -133,7 +142,96 @@ class RunDatabase:
                 CREATE INDEX IF NOT EXISTS idx_attempts_result ON attempts (result_classification);
                 """
             )
+            self._ensure_column_exists("runs", "updated_at", "TEXT NOT NULL DEFAULT ''")
+            self._ensure_column_exists("runs", "grid_size", "INTEGER NOT NULL DEFAULT 3")
+            self._ensure_column_exists("attempts", "device_id", "TEXT NOT NULL DEFAULT ''")
+            self._ensure_column_exists("attempts", "grid_size", "INTEGER NOT NULL DEFAULT 3")
+            self._ensure_column_exists("attempts", "stdout", "TEXT NOT NULL DEFAULT ''")
+            self._ensure_column_exists("attempts", "stderr", "TEXT NOT NULL DEFAULT ''")
+            self._backfill_runs_metadata()
+            self._backfill_attempt_metadata()
+            self._deduplicate_attempts()
+            self.connection.execute(
+                """
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_attempts_device_grid_attempt_unique
+                ON attempts (device_id, grid_size, attempt)
+                """
+            )
             self.connection.commit()
+
+    def _ensure_column_exists(self, table_name: str, column_name: str, definition: str) -> None:
+        existing_columns = {
+            row["name"]
+            for row in self.connection.execute(f"PRAGMA table_info({table_name})").fetchall()
+        }
+        if column_name in existing_columns:
+            return
+        self.connection.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {definition}")
+
+    def _backfill_runs_metadata(self) -> None:
+        rows = self.connection.execute(
+            """
+            SELECT run_id, started_at, updated_at, config_snapshot
+            FROM runs
+            WHERE updated_at = '' OR updated_at IS NULL OR grid_size IS NULL
+            """
+        ).fetchall()
+        for row in rows:
+            snapshot = json.loads(row["config_snapshot"])
+            grid_size = int(snapshot.get("grid_size", 3))
+            updated_at = row["updated_at"] or row["started_at"]
+            self.connection.execute(
+                """
+                UPDATE runs
+                SET updated_at = ?, grid_size = ?
+                WHERE run_id = ?
+                """,
+                (updated_at, grid_size, row["run_id"]),
+            )
+
+    def _backfill_attempt_metadata(self) -> None:
+        rows = self.connection.execute(
+            """
+            SELECT attempts.id, attempts.run_id, attempts.device_id, attempts.grid_size
+            FROM attempts
+            WHERE attempts.device_id = ''
+               OR attempts.device_id IS NULL
+               OR attempts.grid_size IS NULL
+            """
+        ).fetchall()
+        for row in rows:
+            run_row = self.connection.execute(
+                "SELECT device_id, grid_size FROM runs WHERE run_id = ?",
+                (row["run_id"],),
+            ).fetchone()
+            if run_row is None:
+                continue
+            self.connection.execute(
+                """
+                UPDATE attempts
+                SET device_id = ?, grid_size = ?
+                WHERE id = ?
+                """,
+                (run_row["device_id"], run_row["grid_size"], row["id"]),
+            )
+
+    def _deduplicate_attempts(self) -> None:
+        duplicate_rows = self.connection.execute(
+            """
+            SELECT device_id, grid_size, attempt, MIN(id) AS keep_id
+            FROM attempts
+            GROUP BY device_id, grid_size, attempt
+            HAVING COUNT(*) > 1
+            """
+        ).fetchall()
+        for row in duplicate_rows:
+            self.connection.execute(
+                """
+                DELETE FROM attempts
+                WHERE device_id = ? AND grid_size = ? AND attempt = ? AND id <> ?
+                """,
+                (row["device_id"], row["grid_size"], row["attempt"], row["keep_id"]),
+            )
 
     def _config_snapshot(self, config: Config) -> dict[str, object]:
         snapshot = config.model_dump()
@@ -149,20 +247,29 @@ class RunDatabase:
         run_id = str(uuid.uuid4())
         fingerprint = self.config_fingerprint(config)
         snapshot_json = json.dumps(self._config_snapshot(config), sort_keys=True)
+        created_at = utc_now_iso()
         with self._lock:
+            self._reconcile_stale_runs_locked(
+                device_id,
+                config.grid_size,
+                stale_after_seconds=stale_run_timeout_seconds(config),
+            )
             self.connection.execute(
                 """
                 INSERT INTO runs (
-                    run_id, started_at, status, mode, device_id, config_snapshot, config_fingerprint
+                    run_id, started_at, updated_at, status, mode, device_id, grid_size,
+                    config_snapshot, config_fingerprint
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     run_id,
-                    utc_now_iso(),
+                    created_at,
+                    created_at,
                     "running",
                     mode,
                     device_id,
+                    config.grid_size,
                     snapshot_json,
                     fingerprint,
                 ),
@@ -184,50 +291,91 @@ class RunDatabase:
             self.connection.execute(
                 """
                 UPDATE runs
-                SET finished_at = ?, status = ?,
+                SET finished_at = ?, updated_at = ?, status = ?,
                     successful_attempt = COALESCE(?, successful_attempt)
                 WHERE run_id = ?
                 """,
-                (utc_now_iso(), status, successful_attempt, run_id),
+                (utc_now_iso(), utc_now_iso(), status, successful_attempt, run_id),
+            )
+            self.connection.commit()
+
+    def reconcile_stale_runs(
+        self,
+        device_id: str,
+        grid_size: int,
+        *,
+        stale_after_seconds: int,
+    ) -> int:
+        with self._lock:
+            return self._reconcile_stale_runs_locked(
+                device_id,
+                grid_size,
+                stale_after_seconds=stale_after_seconds,
+            )
+
+    def _reconcile_stale_runs_locked(
+        self,
+        device_id: str,
+        grid_size: int,
+        *,
+        stale_after_seconds: int,
+    ) -> int:
+        cutoff = datetime.now(timezone.utc) - timedelta(seconds=stale_after_seconds)
+        cutoff_iso = cutoff.isoformat(timespec="seconds")
+        reconciled_at = utc_now_iso()
+        cursor = self.connection.execute(
+            """
+            UPDATE runs
+            SET status = 'interrupted_or_crashed',
+                finished_at = COALESCE(finished_at, updated_at),
+                updated_at = ?
+            WHERE device_id = ? AND grid_size = ? AND status = 'running' AND updated_at < ?
+            """,
+            (reconciled_at, device_id, grid_size, cutoff_iso),
+        )
+        self.connection.commit()
+        return int(cursor.rowcount)
+
+    def touch_run(self, run_id: str) -> None:
+        with self._lock:
+            self.connection.execute(
+                "UPDATE runs SET updated_at = ? WHERE run_id = ?",
+                (utc_now_iso(), run_id),
             )
             self.connection.commit()
 
     def get_attempted_paths(self, config: Config, device_id: str) -> set[str]:
-        fingerprint = self.config_fingerprint(config)
         with self._lock:
             rows = self.connection.execute(
                 """
-                SELECT DISTINCT attempts.attempt
+                SELECT DISTINCT attempt
                 FROM attempts
-                INNER JOIN runs ON runs.run_id = attempts.run_id
-                WHERE runs.device_id = ? AND runs.config_fingerprint = ?
+                WHERE device_id = ? AND grid_size = ?
                 """,
-                (device_id, fingerprint),
+                (device_id, config.grid_size),
             ).fetchall()
         return {row[0] for row in rows}
 
     def get_resume_info(self, config: Config, device_id: str) -> ResumeInfo:
-        fingerprint = self.config_fingerprint(config)
         with self._lock:
             attempted_count_row = self.connection.execute(
                 """
-                SELECT COUNT(DISTINCT attempts.attempt) AS attempted_count
+                SELECT COUNT(*) AS attempted_count
                 FROM attempts
-                INNER JOIN runs ON runs.run_id = attempts.run_id
-                WHERE runs.device_id = ? AND runs.config_fingerprint = ?
+                WHERE device_id = ? AND grid_size = ?
                 """,
-                (device_id, fingerprint),
+                (device_id, config.grid_size),
             ).fetchone()
 
             latest_row = self.connection.execute(
                 """
                 SELECT run_id, started_at, finished_at, status, successful_attempt
                 FROM runs
-                WHERE device_id = ? AND config_fingerprint = ?
+                WHERE device_id = ? AND grid_size = ?
                 ORDER BY started_at DESC
                 LIMIT 1
                 """,
-                (device_id, fingerprint),
+                (device_id, config.grid_size),
             ).fetchone()
 
         return ResumeInfo(
@@ -249,25 +397,42 @@ class RunDatabase:
         result_classification: str,
         returncode: int | None,
         duration_ms: float,
+        *,
+        stdout: str = "",
+        stderr: str = "",
     ) -> None:
         with self._lock:
+            run_row = self.connection.execute(
+                "SELECT device_id, grid_size FROM runs WHERE run_id = ?",
+                (run_id,),
+            ).fetchone()
+            if run_row is None:
+                raise ValueError(f"Unknown run_id: {run_id}")
             self.connection.execute(
                 """
                 INSERT INTO attempts (
-                    run_id, timestamp, attempt, response,
-                    result_classification, returncode, duration_ms
+                    run_id, timestamp, device_id, grid_size, attempt, response,
+                    stdout, stderr, result_classification, returncode, duration_ms
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     run_id,
                     utc_now_iso(),
+                    run_row["device_id"],
+                    run_row["grid_size"],
                     attempt,
                     response,
+                    stdout,
+                    stderr,
                     result_classification,
                     returncode,
                     duration_ms,
                 ),
+            )
+            self.connection.execute(
+                "UPDATE runs SET updated_at = ? WHERE run_id = ?",
+                (utc_now_iso(), run_id),
             )
             self.connection.commit()
 
@@ -283,6 +448,7 @@ class RunDatabase:
                     runs.status,
                     runs.mode,
                     runs.device_id,
+                    runs.grid_size,
                     runs.successful_attempt,
                     COUNT(attempts.id) AS attempt_count
                 FROM runs
@@ -307,6 +473,7 @@ class RunDatabase:
                     runs.status,
                     runs.mode,
                     runs.device_id,
+                    runs.grid_size,
                     runs.successful_attempt,
                     runs.config_snapshot,
                     runs.config_fingerprint,
@@ -331,6 +498,8 @@ class RunDatabase:
                     timestamp,
                     attempt,
                     response,
+                    stdout,
+                    stderr,
                     result_classification,
                     returncode,
                     duration_ms
@@ -342,3 +511,9 @@ class RunDatabase:
                 (run_id, limit, offset),
             ).fetchall()
         return list(rows)
+
+
+def stale_run_timeout_seconds(config: Config) -> int:
+    minimum_timeout = 300
+    attempt_window = int(config.adb_timeout + config.attempt_delay) * 3 + 30
+    return max(minimum_timeout, attempt_window)

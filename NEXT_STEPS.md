@@ -25,7 +25,10 @@ Recommended checks:
 
 ### 2. Database deduplication can be made cheaper and more direct
 
-The current persistence layer tracks attempts well enough for resume and history, but a future revision should make duplicate-attempt checks depend on the smallest piece of information that actually matters: device plus tested path.
+The current persistence layer tracks attempts well enough for resume and
+history, but a future revision should make duplicate-attempt checks depend on
+the smallest piece of information that actually matters: device plus tested
+path.
 
 Recommended follow-up:
 

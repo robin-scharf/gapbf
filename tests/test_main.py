@@ -108,6 +108,23 @@ def test_check_device_command_renders_connected_device(mocker):
     assert "SERIAL123" in result.stdout
 
 
+def test_web_command_prints_serving_url(mocker):
+    serve_web_ui = mocker.patch("gapbf.web.serve_web_ui")
+
+    result = runner.invoke(app, ["web", "--host", "127.0.0.1", "--port", "8123"])
+
+    assert result.exit_code == 0
+    assert "Serving GAPBF web UI at http://127.0.0.1:8123" in result.stdout
+    assert "Press Ctrl+C to stop the server" in result.stdout
+    serve_web_ui.assert_called_once_with(
+        host="127.0.0.1",
+        port=8123,
+        config_path="config.yaml",
+        log_level="error",
+        log_file=None,
+    )
+
+
 def test_status_command_renders_resume_state(mocker):
     config = Config(
         grid_size=3, path_min_length=4, path_max_length=9, db_path="test.db", adb_timeout=30
@@ -119,18 +136,21 @@ def test_status_command_renders_resume_state(mocker):
     future.done.return_value = True
     future.result.return_value = 389112
     path_finder.calculate_total_paths_async.return_value = future
-    mocker.patch("gapbf.main.PathFinder", return_value=path_finder)
-    mocker.patch("gapbf.main.detect_device_id", return_value="SERIAL123")
-    database = mocker.Mock()
-    database.get_resume_info.return_value = ResumeInfo(
-        attempted_count=25,
-        latest_run_id="run-1",
-        latest_started_at="2026-03-18T10:00:00+00:00",
-        latest_finished_at=None,
-        latest_status="running",
-        latest_successful_attempt=None,
+    mocker.patch("gapbf.main.create_path_finder", return_value=path_finder)
+    mocker.patch(
+        "gapbf.main.load_resume_context",
+        return_value=mocker.Mock(
+            device_id="SERIAL123",
+            resume_info=ResumeInfo(
+                attempted_count=25,
+                latest_run_id="run-1",
+                latest_started_at="2026-03-18T10:00:00+00:00",
+                latest_finished_at=None,
+                latest_status="running",
+                latest_successful_attempt=None,
+            ),
+        ),
     )
-    mocker.patch("gapbf.main.RunDatabase", return_value=database)
 
     result = runner.invoke(app, ["status"])
 
@@ -153,18 +173,21 @@ def test_status_command_uses_configured_total_paths_without_calculating(mocker):
     )
     mocker.patch("gapbf.main.Config.load_config", return_value=config)
     path_finder = mocker.Mock()
-    mocker.patch("gapbf.main.PathFinder", return_value=path_finder)
-    mocker.patch("gapbf.main.detect_device_id", return_value="SERIAL123")
-    database = mocker.Mock()
-    database.get_resume_info.return_value = ResumeInfo(
-        attempted_count=0,
-        latest_run_id=None,
-        latest_started_at=None,
-        latest_finished_at=None,
-        latest_status=None,
-        latest_successful_attempt=None,
+    mocker.patch("gapbf.main.create_path_finder", return_value=path_finder)
+    mocker.patch(
+        "gapbf.main.load_resume_context",
+        return_value=mocker.Mock(
+            device_id="SERIAL123",
+            resume_info=ResumeInfo(
+                attempted_count=0,
+                latest_run_id=None,
+                latest_started_at=None,
+                latest_finished_at=None,
+                latest_status=None,
+                latest_successful_attempt=None,
+            ),
+        ),
     )
-    mocker.patch("gapbf.main.RunDatabase", return_value=database)
 
     result = runner.invoke(app, ["status"])
 
@@ -188,18 +211,21 @@ def test_status_command_can_force_total_path_calculation(mocker):
     future.done.return_value = True
     future.result.return_value = 389112
     path_finder.calculate_total_paths_async.return_value = future
-    mocker.patch("gapbf.main.PathFinder", return_value=path_finder)
-    mocker.patch("gapbf.main.detect_device_id", return_value="SERIAL123")
-    database = mocker.Mock()
-    database.get_resume_info.return_value = ResumeInfo(
-        attempted_count=0,
-        latest_run_id=None,
-        latest_started_at=None,
-        latest_finished_at=None,
-        latest_status=None,
-        latest_successful_attempt=None,
+    mocker.patch("gapbf.main.create_path_finder", return_value=path_finder)
+    mocker.patch(
+        "gapbf.main.load_resume_context",
+        return_value=mocker.Mock(
+            device_id="SERIAL123",
+            resume_info=ResumeInfo(
+                attempted_count=0,
+                latest_run_id=None,
+                latest_started_at=None,
+                latest_finished_at=None,
+                latest_status=None,
+                latest_successful_attempt=None,
+            ),
+        ),
     )
-    mocker.patch("gapbf.main.RunDatabase", return_value=database)
 
     result = runner.invoke(app, ["status", "--calculate-total-paths"])
 
@@ -219,18 +245,21 @@ def test_status_command_skips_background_total_counting_when_non_interactive(moc
     mocker.patch("gapbf.main.Config.load_config", return_value=config)
     mocker.patch("gapbf.main._should_auto_count_status_totals", return_value=False)
     path_finder = mocker.Mock()
-    mocker.patch("gapbf.main.PathFinder", return_value=path_finder)
-    mocker.patch("gapbf.main.detect_device_id", return_value="SERIAL123")
-    database = mocker.Mock()
-    database.get_resume_info.return_value = ResumeInfo(
-        attempted_count=0,
-        latest_run_id=None,
-        latest_started_at=None,
-        latest_finished_at=None,
-        latest_status=None,
-        latest_successful_attempt=None,
+    mocker.patch("gapbf.main.create_path_finder", return_value=path_finder)
+    mocker.patch(
+        "gapbf.main.load_resume_context",
+        return_value=mocker.Mock(
+            device_id="SERIAL123",
+            resume_info=ResumeInfo(
+                attempted_count=0,
+                latest_run_id=None,
+                latest_started_at=None,
+                latest_finished_at=None,
+                latest_status=None,
+                latest_successful_attempt=None,
+            ),
+        ),
     )
-    mocker.patch("gapbf.main.RunDatabase", return_value=database)
 
     result = runner.invoke(app, ["status"])
 
@@ -249,8 +278,15 @@ def test_run_command_uses_live_total_counting_without_touching_pathfinder_total_
     path_finder.calculate_total_paths_async.return_value = future
     path_finder.__iter__.return_value = iter([])
     path_finder.handlers = []
-    mocker.patch("gapbf.main.PathFinder", return_value=path_finder)
-    mocker.patch("gapbf.main._add_handlers")
+    session = mocker.Mock()
+    session.path_finder = path_finder
+    session.resume_info = None
+    session.device_id = None
+    session.run_id = None
+    session.database = None
+    session.attach_state.side_effect = lambda _state: None
+    session.finish.side_effect = lambda *_args, **_kwargs: None
+    mocker.patch("gapbf.main.open_run_session", return_value=session)
 
     result = runner.invoke(app, ["run", "--mode", "p"])
 

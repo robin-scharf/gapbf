@@ -120,6 +120,12 @@ class TestPathFinder:
 
         assert pf._excluded_nodes == {"5", "6"}
 
+    def test_max_node_distance_limits_long_jumps(self):
+        pf = PathFinder(grid_size=3, path_min_len=3, path_max_len=5, path_max_node_distance=1)
+
+        assert "3" not in pf._neighbors["1"]
+        assert "5" in pf._neighbors["1"]
+
     def test_calculate_total_paths_updates_config(self):
         """Test that _calculate_total_paths correctly calculates path count."""
         # Note: PathFinder no longer automatically writes to config.yaml

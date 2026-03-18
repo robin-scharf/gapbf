@@ -2,7 +2,10 @@
 
 ## Project Overview
 
-This is a Python-based Android pattern brute force tool that uses TWRP recovery and ADB to attempt pattern decryption. The architecture follows a handler pattern where different execution modes (ADB, Test, Print) implement the same interface.
+This is a Python-based Android pattern brute force tool that uses TWRP
+recovery and ADB to attempt pattern decryption. The architecture follows a
+handler pattern where different execution modes (ADB, Test, Print) implement
+the same interface.
 
 ## Core Architecture
 
