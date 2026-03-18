@@ -7,6 +7,7 @@ import json
 import sqlite3
 import subprocess
 import uuid
+from typing import cast
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -291,5 +292,53 @@ class RunDatabase:
                 LIMIT ?
                 """,
                 (limit,),
+            ).fetchall()
+        return list(rows)
+
+    def get_run(self, run_id: str) -> sqlite3.Row | None:
+        """Return a single run row with an aggregated attempt count."""
+        with self._lock:
+            row = self.connection.execute(
+                """
+                SELECT
+                    runs.run_id,
+                    runs.started_at,
+                    runs.finished_at,
+                    runs.status,
+                    runs.mode,
+                    runs.device_id,
+                    runs.successful_attempt,
+                    runs.config_snapshot,
+                    runs.config_fingerprint,
+                    COUNT(attempts.id) AS attempt_count
+                FROM runs
+                LEFT JOIN attempts ON attempts.run_id = runs.run_id
+                WHERE runs.run_id = ?
+                GROUP BY runs.run_id
+                """,
+                (run_id,),
+            ).fetchone()
+        return cast(sqlite3.Row | None, row)
+
+    def list_attempts(self, run_id: str, limit: int = 200, offset: int = 0) -> list[sqlite3.Row]:
+        """Return attempts for a run in reverse chronological order."""
+        with self._lock:
+            rows = self.connection.execute(
+                """
+                SELECT
+                    id,
+                    run_id,
+                    timestamp,
+                    attempt,
+                    response,
+                    result_classification,
+                    returncode,
+                    duration_ms
+                FROM attempts
+                WHERE run_id = ?
+                ORDER BY id DESC
+                LIMIT ? OFFSET ?
+                """,
+                (run_id, limit, offset),
             ).fetchall()
         return list(rows)

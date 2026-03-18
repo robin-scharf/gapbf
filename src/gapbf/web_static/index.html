@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>GAPBF Control Deck</title>
+    <link rel="stylesheet" href="/assets/styles.css" />
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="hero">
+        <div>
+          <p class="eyebrow">Local Operator Console</p>
+          <h1>GAPBF Control Deck</h1>
+          <p class="lede">
+            Configure constraints, sketch known pattern segments, and watch the current
+            brute-force path live.
+          </p>
+        </div>
+        <div class="hero-meta">
+          <div class="badge" id="connectionBadge">API ready</div>
+          <div class="badge badge-quiet" id="runStatusBadge">Idle</div>
+        </div>
+      </header>
+
+      <main class="layout-grid">
+        <section class="panel panel-config">
+          <div class="panel-head">
+            <div>
+              <p class="section-kicker">Configuration</p>
+              <h2>Search Space</h2>
+            </div>
+            <div class="inline-actions">
+              <input id="configPath" type="text" value="config.yaml" />
+              <button id="loadConfigButton" class="button button-secondary">Load</button>
+            </div>
+          </div>
+
+          <div id="validationBanner" class="validation-banner hidden"></div>
+
+          <div class="field-grid">
+            <label>
+              <span>Grid size</span>
+              <select id="gridSize"></select>
+            </label>
+            <label>
+              <span>Mode</span>
+              <div class="mode-row">
+                <label class="checkbox-pill"><input id="modeA" type="checkbox" checked />ADB</label>
+                <label class="checkbox-pill"><input id="modeT" type="checkbox" />Test</label>
+                <label class="checkbox-pill"><input id="modeP" type="checkbox" />Print</label>
+              </div>
+            </label>
+            <label>
+              <span>Minimum path length</span>
+              <div class="range-row">
+                <input id="pathMinLength" type="range" min="1" max="9" value="4" />
+                <input id="pathMinLengthNumber" type="number" min="1" max="9" value="4" />
+              </div>
+            </label>
+            <label>
+              <span>Maximum path length</span>
+              <div class="range-row">
+                <input id="pathMaxLength" type="range" min="1" max="9" value="9" />
+                <input id="pathMaxLengthNumber" type="number" min="1" max="9" value="9" />
+              </div>
+            </label>
+            <label>
+              <span>Attempt delay (seconds)</span>
+              <input id="attemptDelay" type="number" step="0.1" min="0" value="10.1" />
+            </label>
+            <label>
+              <span>ADB timeout (seconds)</span>
+              <input id="adbTimeout" type="number" step="1" min="1" value="30" />
+            </label>
+            <label>
+              <span>Path max node distance</span>
+              <input id="pathMaxNodeDistance" type="number" step="1" min="1" value="1" />
+              <small class="field-note" id="distanceNote"></small>
+            </label>
+            <label class="checkbox-row">
+              <input id="echoCommands" type="checkbox" checked />
+              <span>Echo attempted patterns in the ADB shell command</span>
+            </label>
+          </div>
+
+          <div class="field-grid field-grid-wide">
+            <label>
+              <span>stdout success</span>
+              <input id="stdoutSuccess" type="text" />
+            </label>
+            <label>
+              <span>stdout normal</span>
+              <input id="stdoutNormal" type="text" />
+            </label>
+            <label>
+              <span>stdout error</span>
+              <input id="stdoutError" type="text" />
+            </label>
+            <label>
+              <span>Database path</span>
+              <input id="dbPath" type="text" />
+            </label>
+            <label>
+              <span>Test path</span>
+              <input id="testPath" type="text" placeholder="1234" />
+            </label>
+            <label>
+              <span>Total paths override</span>
+              <input id="totalPaths" type="number" min="0" value="0" />
+            </label>
+          </div>
+
+          <div class="panel-head panel-head-tight">
+            <div>
+              <p class="section-kicker">Pattern Builder</p>
+              <h2>Prefix, Excluded, Suffix</h2>
+            </div>
+            <div class="tool-row">
+              <button data-tool="prefix" class="tool-button is-active">Prefix</button>
+              <button data-tool="exclude" class="tool-button">Exclude</button>
+              <button data-tool="suffix" class="tool-button">Suffix</button>
+            </div>
+          </div>
+
+          <div class="builder-grid">
+            <div class="board-card">
+              <div id="patternBoard" class="pattern-board"></div>
+              <div class="legend-row">
+                <span class="legend-chip legend-prefix">Prefix</span>
+                <span class="legend-chip legend-excluded">Excluded</span>
+                <span class="legend-chip legend-suffix">Suffix</span>
+                <span class="legend-chip legend-live">Current path</span>
+              </div>
+            </div>
+            <div class="sequence-card">
+              <div>
+                <p class="sequence-title">Prefix</p>
+                <p id="prefixDisplay" class="sequence-value">-</p>
+                <button id="clearPrefixButton" class="button button-secondary button-small">Clear</button>
+              </div>
+              <div>
+                <p class="sequence-title">Excluded</p>
+                <p id="excludedDisplay" class="sequence-value">-</p>
+                <button id="clearExcludedButton" class="button button-secondary button-small">Clear</button>
+              </div>
+              <div>
+                <p class="sequence-title">Suffix</p>
+                <p id="suffixDisplay" class="sequence-value">-</p>
+                <button id="clearSuffixButton" class="button button-secondary button-small">Clear</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="action-row">
+            <button id="startButton" class="button">Start</button>
+            <button id="pauseButton" class="button button-secondary" disabled>Pause</button>
+            <button id="resumeButton" class="button button-secondary" disabled>Resume</button>
+            <button id="stopButton" class="button button-danger" disabled>Stop</button>
+          </div>
+        </section>
+
+        <section class="panel panel-visual">
+          <div class="panel-head">
+            <div>
+              <p class="section-kicker">Live View</p>
+              <h2>Progress + Path Overlay</h2>
+            </div>
+          </div>
+
+          <div class="progress-block">
+            <div class="progress-head">
+              <span id="progressLabel">0 / Unknown</span>
+              <span id="progressPercent">0.00%</span>
+            </div>
+            <div class="progress-bar-track"><div id="progressBar" class="progress-bar-fill"></div></div>
+          </div>
+
+          <div class="stats-grid">
+            <article class="stat-card">
+              <span>Status</span>
+              <strong id="statusValue">Idle</strong>
+            </article>
+            <article class="stat-card">
+              <span>Current path</span>
+              <strong id="currentPathValue">-</strong>
+            </article>
+            <article class="stat-card">
+              <span>Total paths</span>
+              <strong id="totalPathsValue">Unknown</strong>
+            </article>
+            <article class="stat-card">
+              <span>Device</span>
+              <strong id="deviceValue">-</strong>
+            </article>
+            <article class="stat-card">
+              <span>Started</span>
+              <strong id="startedAtValue">-</strong>
+            </article>
+            <article class="stat-card">
+              <span>Last feedback</span>
+              <strong id="feedbackValue">Ready</strong>
+            </article>
+          </div>
+
+          <div class="live-board-shell">
+            <div id="liveBoard" class="pattern-board pattern-board-large"></div>
+          </div>
+        </section>
+
+        <section class="panel panel-log">
+          <div class="panel-head">
+            <div>
+              <p class="section-kicker">Attempt Log</p>
+              <h2>Path, Timestamp, Result</h2>
+            </div>
+          </div>
+
+          <div class="log-table-wrap">
+            <table class="log-table">
+              <thead>
+                <tr>
+                  <th>Timestamp</th>
+                  <th>Path</th>
+                  <th>Result</th>
+                  <th>Duration</th>
+                  <th>Response</th>
+                </tr>
+              </thead>
+              <tbody id="logTableBody">
+                <tr><td colspan="5" class="empty-cell">No attempts yet.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script src="/assets/app.js" type="module"></script>
+  </body>
+  </html>

@@ -952,6 +952,20 @@ def status_command(
     )
 
 
+@app.command("web")
+def web_command(
+    config: str = typer.Option("config.yaml", "--config", "-c"),
+    host: str = typer.Option("127.0.0.1", "--host"),
+    port: int = typer.Option(8000, "--port", min=1, max=65535),
+    log_level: str = typer.Option("error", "--logging", "-l"),
+    log_file: str | None = typer.Option(None, "--log-file"),
+) -> None:
+    """Serve the local web UI for controlling and monitoring GAPBF."""
+    from .web import serve_web_ui
+
+    serve_web_ui(host=host, port=port, config_path=config, log_level=log_level, log_file=log_file)
+
+
 def main() -> None:
     try:
         app()
