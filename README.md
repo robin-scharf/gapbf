@@ -97,7 +97,17 @@ uv run gapbf -m ap
 
 ## Configuration
 
-Runtime configuration lives in [`config.yaml`](./config.yaml).
+This repository ships a template config at `config.example.yaml`.
+
+Create your local runtime config with:
+
+```bash
+cp config.example.yaml config.yaml
+```
+
+`config.yaml` is intentionally gitignored so device-specific settings, path constraints, and local runtime values stay out of commits.
+
+Runtime configuration is loaded from `config.yaml` by default.
 
 Important fields include:
 
