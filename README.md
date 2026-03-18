@@ -147,9 +147,15 @@ Important fields include:
 - `stdout_success`
 - `stdout_error`
 
-The web UI exposes the same configuration surface with grid-aware limits and live validation. Prefix and suffix segments can be drawn directly on the board, excluded nodes can be toggled visually, and run progress plus attempt logs stream back into the browser while a search is active.
+The web UI exposes the same configuration surface with grid-aware limits and live
+validation. Prefix and suffix segments can be drawn directly on the board,
+excluded nodes can be toggled visually, and run progress plus attempt logs
+stream back into the browser while a search is active.
 
-Constrain the pattern space as aggressively as possible. Prefixes, suffixes, excluded nodes, and realistic path lengths have a much larger effect on runtime than implementation-level optimizations because TWRP remains the throughput bottleneck.
+Constrain the pattern space as aggressively as possible. Prefixes, suffixes,
+excluded nodes, and realistic path lengths have a much larger effect on runtime
+than implementation-level optimizations because TWRP remains the throughput
+bottleneck.
 
 ## Grid Mappings
 

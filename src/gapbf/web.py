@@ -7,12 +7,16 @@ import json
 import logging
 import queue
 import time
+import urllib.error
+import urllib.request
+import webbrowser
 from collections import deque
 from pathlib import Path
 from threading import Lock, Thread
 from typing import Any
 
 import uvicorn
+import yaml
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -20,13 +24,14 @@ from pydantic import BaseModel, Field
 from rich.console import Console
 
 from .Config import Config, valid_nodes_for_grid
-from .Database import RunDatabase, detect_device_id, utc_now_iso
+from .Database import RunDatabase, utc_now_iso
 from .Logging import setup_logging
 from .Output import Output
-from .PathFinder import PathFinder
-from .PathHandler import ADBHandler, PathHandler, PrintHandler, TestHandler
+from .runtime import RunSession, UserRequestedStop, execute_path_search, open_run_session
 
 logger = logging.getLogger("gapbf.web")
+_WEB_SERVER_LOCK = Lock()
+_WEB_SERVER_THREADS: dict[tuple[str, int], Thread] = {}
 
 ALLOWED_MODES = {"a", "p", "t"}
 ATTEMPT_EVENTS = {
@@ -42,12 +47,13 @@ ATTEMPT_EVENTS = {
 }
 
 
-class UserRequestedStop(Exception):
-    """Raised when the operator requests a graceful stop."""
-
-
 class LoadConfigRequest(BaseModel):
     path: str = Field(default="config.yaml", min_length=1)
+
+
+class SaveConfigRequest(BaseModel):
+    path: str = Field(min_length=1)
+    config: dict[str, Any]
 
 
 class ValidateConfigRequest(BaseModel):
@@ -86,6 +92,8 @@ def _serialize_attempt_row(row: Any) -> dict[str, Any]:
         "timestamp": row["timestamp"],
         "attempt": row["attempt"],
         "response": row["response"],
+        "stdout": row["stdout"],
+        "stderr": row["stderr"],
         "result_classification": row["result_classification"],
         "returncode": row["returncode"],
         "duration_ms": row["duration_ms"],
@@ -111,13 +119,12 @@ def _config_meta(grid_size: int) -> dict[str, Any]:
         "grid_size": grid_size,
         "nodes": nodes,
         "node_count": len(nodes),
-        "min_path_length": 1,
-        "default_path_min_length": min(4, len(nodes)),
+        "min_path_length": 4,
+        "default_path_min_length": 4,
         "max_path_length": len(nodes),
         "default_path_max_length": len(nodes),
         "default_attempt_delay": 10.1,
         "default_adb_timeout": 30,
-        "path_max_node_distance_note": "Stored in config but not enforced by PathFinder yet.",
     }
 
 
@@ -157,9 +164,8 @@ class WebRunController:
         self._lock = Lock()
         self._subscribers: list[queue.Queue[dict[str, Any]]] = []
         self._log_tail: deque[dict[str, Any]] = deque(maxlen=250)
-        self._database: RunDatabase | None = None
+        self._session: RunSession | None = None
         self._thread: Thread | None = None
-        self._run_id: str | None = None
         self._state: dict[str, Any] = {
             "default_config_path": default_config_path,
             "active": False,
@@ -220,6 +226,19 @@ class WebRunController:
             "meta": _config_meta(config.grid_size),
         }
 
+    def save_config(self, path: str, config_data: dict[str, Any]) -> dict[str, Any]:
+        config = _config_from_payload({**config_data, "config_file_path": path})
+        config_path = Path(path).expanduser()
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        serializable = config.model_dump(exclude={"config_file_path"})
+        with config_path.open("w", encoding="utf-8") as file_obj:
+            yaml.safe_dump(serializable, file_obj, sort_keys=False)
+        return {
+            "saved_path": str(config_path),
+            "config": _serialize_config(config),
+            "meta": _config_meta(config.grid_size),
+        }
+
     def list_recent_runs(self, db_path: str, limit: int = 20) -> list[dict[str, Any]]:
         database = RunDatabase(db_path)
         try:
@@ -273,37 +292,17 @@ class WebRunController:
             )
 
         try:
-            path_finder = PathFinder(
-                config.grid_size,
-                config.path_min_length,
-                config.path_max_length,
-                config.path_max_node_distance,
-                config.path_prefix,
-                config.path_suffix,
-                config.excluded_nodes,
-            )
-
-            run_id: str | None = None
-            device_id: str | None = None
-            if "a" in validated_mode:
-                self._database = RunDatabase(config.db_path)
-                device_id = detect_device_id(config.adb_timeout)
-                resume_info = self._database.get_resume_info(config, device_id)
-                run_info = self._database.create_run(config, device_id, validated_mode)
-                run_id = run_info.run_id
-                with self._lock:
-                    self._state["device_id"] = device_id
-                    self._state["resume_info"] = _serialize_resume_info(resume_info)
-                    self._state["paths_tested"] = resume_info.attempted_count
-                    self._state["run_id"] = run_id
-                    self._run_id = run_id
-            else:
-                with self._lock:
-                    self._run_id = None
-
             output = Output(console=Console(), silent=True, event_sink=self._handle_output_event)
-            for handler in self._build_handlers(path_finder, config, validated_mode, output):
-                path_finder.add_handler(handler)
+            session = open_run_session(config, validated_mode, output)
+            path_finder = session.path_finder
+            with self._lock:
+                self._session = session
+                self._state["device_id"] = session.device_id
+                self._state["resume_info"] = _serialize_resume_info(session.resume_info)
+                self._state["paths_tested"] = (
+                    session.resume_info.attempted_count if session.resume_info is not None else 0
+                )
+                self._state["run_id"] = session.run_id
 
             if config.total_paths <= 0:
                 total_future = path_finder.calculate_total_paths_async()
@@ -317,23 +316,23 @@ class WebRunController:
             self._publish("snapshot", self.snapshot())
             self._thread = Thread(
                 target=self._run_search,
-                args=(path_finder, config, validated_mode, run_id),
+                args=(session,),
                 name="gapbf-web-run",
                 daemon=True,
             )
             self._thread.start()
             return self.snapshot()
         except Exception as error:
-            if self._database is not None:
-                self._database.close()
-                self._database = None
+            if self._session is not None:
+                self._session.close()
+                self._session = None
             with self._lock:
-                self._run_id = None
                 self._state["active"] = False
                 self._state["status"] = "error"
                 self._state["finished_at"] = utc_now_iso()
                 self._state["error_message"] = str(error)
                 self._state["last_feedback"] = str(error)
+                self._state["run_id"] = None
             self._publish("snapshot", self.snapshot())
             raise
 
@@ -397,30 +396,6 @@ class WebRunController:
                 self._state["last_feedback"] = "Exact total path count is ready"
         self._publish("snapshot", self.snapshot())
 
-    def _build_handlers(
-        self, path_finder: PathFinder, config: Config, mode: str, output: Output
-    ) -> list[PathHandler]:
-        handlers: list[PathHandler] = []
-        for mode_key in mode:
-            if mode_key == "p":
-                handlers.append(PrintHandler(config, path_finder.grid_nodes, output))
-            elif mode_key == "t":
-                handlers.append(TestHandler(config, output))
-            elif mode_key == "a":
-                device_id = self.snapshot()["device_id"]
-                if self._database is None or self._run_id is None or device_id is None:
-                    raise ValueError("ADB mode requires an initialized device and database")
-                handlers.append(
-                    ADBHandler(
-                        config,
-                        database=self._database,
-                        run_id=self._run_id,
-                        device_id=str(device_id),
-                        output=output,
-                    )
-                )
-        return handlers
-
     def _handle_output_event(self, event_type: str, payload: dict[str, Any]) -> None:
         snapshot_required = False
         with self._lock:
@@ -446,10 +421,11 @@ class WebRunController:
     def _build_log_entry(self, event_type: str, payload: dict[str, Any]) -> dict[str, Any]:
         if (
             event_type.startswith("adb_")
-            and self._database is not None
-            and self._run_id is not None
+            and self._session is not None
+            and self._session.database is not None
+            and self._session.run_id is not None
         ):
-            rows = self._database.list_attempts(self._run_id, limit=1, offset=0)
+            rows = self._session.database.list_attempts(self._session.run_id, limit=1, offset=0)
             if rows:
                 return _serialize_attempt_row(rows[0])
         path = payload.get("path")
@@ -459,7 +435,7 @@ class WebRunController:
             response = "Printed path"
         return {
             "id": None,
-            "run_id": self._run_id,
+            "run_id": self._state.get("run_id"),
             "timestamp": utc_now_iso(),
             "attempt": attempt,
             "response": response,
@@ -468,39 +444,43 @@ class WebRunController:
             "duration_ms": 0.0,
         }
 
-    def _run_search(
-        self, path_finder: PathFinder, config: Config, mode: str, run_id: str | None
-    ) -> None:
+    def _run_search(self, session: RunSession) -> None:
+        path_finder = session.path_finder
         with self._lock:
             self._state["status"] = "running"
             self._state["last_feedback"] = "Running"
         self._publish("snapshot", self.snapshot())
 
         try:
-            for path in path_finder:
-                while True:
-                    with self._lock:
-                        stop_requested = bool(self._state["stop_requested"])
-                        paused = bool(self._state["paused"])
-                    if stop_requested:
-                        raise UserRequestedStop()
-                    if not paused:
-                        break
-                    time.sleep(0.05)
+            def should_stop() -> bool:
+                with self._lock:
+                    return bool(self._state["stop_requested"])
 
+            def is_paused() -> bool:
+                with self._lock:
+                    return bool(self._state["paused"])
+
+            def total_paths_provider() -> int | None:
+                total_paths = self.snapshot()["total_paths"]
+                if isinstance(total_paths, int) or total_paths is None:
+                    return total_paths
+                return None
+
+            def on_path_selected(path: list[str]) -> None:
                 with self._lock:
                     self._state["current_path"] = "".join(path)
-                total_paths = self.snapshot()["total_paths"]
-                success, result_path = path_finder.process_path(path, total_paths)
+
+            def on_attempt_completed(
+                path: list[str], result_success: bool, result_path: list[str] | None
+            ) -> None:
                 with self._lock:
                     self._state["paths_tested"] += 1
                     self._state["current_path"] = "".join(path)
                 self._publish("snapshot", self.snapshot())
 
-                if success:
+                if result_success:
                     resolved_path = "".join(result_path or path)
-                    if self._database is not None and run_id is not None:
-                        self._database.finish_run(run_id, "success", resolved_path)
+                    session.finish("success", resolved_path)
                     with self._lock:
                         self._state["active"] = False
                         self._state["status"] = "success"
@@ -508,10 +488,20 @@ class WebRunController:
                         self._state["successful_path"] = resolved_path
                         self._state["last_feedback"] = f"Pattern found: {resolved_path}"
                     self._publish("snapshot", self.snapshot())
-                    return
 
-            if self._database is not None and run_id is not None:
-                self._database.finish_run(run_id, "completed")
+            success, _resolved_path = execute_path_search(
+                path_finder,
+                should_stop=should_stop,
+                is_paused=is_paused,
+                total_paths_provider=total_paths_provider,
+                on_path_selected=on_path_selected,
+                on_attempt_completed=on_attempt_completed,
+            )
+
+            if success:
+                return
+
+            session.finish("completed")
             with self._lock:
                 self._state["active"] = False
                 self._state["status"] = "completed"
@@ -521,8 +511,7 @@ class WebRunController:
                 )
             self._publish("snapshot", self.snapshot())
         except UserRequestedStop:
-            if self._database is not None and run_id is not None:
-                self._database.finish_run(run_id, "interrupted")
+            session.finish("interrupted")
             with self._lock:
                 self._state["active"] = False
                 self._state["status"] = "interrupted"
@@ -531,8 +520,7 @@ class WebRunController:
             self._publish("snapshot", self.snapshot())
         except Exception as error:
             logger.exception("Web run failed")
-            if self._database is not None and run_id is not None:
-                self._database.finish_run(run_id, "error")
+            session.finish("error")
             with self._lock:
                 self._state["active"] = False
                 self._state["status"] = "error"
@@ -541,9 +529,9 @@ class WebRunController:
                 self._state["last_feedback"] = str(error)
             self._publish("snapshot", self.snapshot())
         finally:
-            if self._database is not None:
-                self._database.close()
-                self._database = None
+            session.close()
+            with self._lock:
+                self._session = None
 
 
 def create_app(default_config_path: str = "config.yaml") -> FastAPI:
@@ -580,6 +568,13 @@ def create_app(default_config_path: str = "config.yaml") -> FastAPI:
     def load_config(request: LoadConfigRequest) -> dict[str, Any]:
         try:
             return controller.load_config(request.path)
+        except Exception as error:
+            raise HTTPException(status_code=400, detail=str(error)) from error
+
+    @app.post("/api/config/save")
+    def save_config(request: SaveConfigRequest) -> dict[str, Any]:
+        try:
+            return controller.save_config(request.path, request.config)
         except Exception as error:
             raise HTTPException(status_code=400, detail=str(error)) from error
 
@@ -675,3 +670,64 @@ def serve_web_ui(
 ) -> None:
     setup_logging(log_level, log_file)
     uvicorn.run(create_app(config_path), host=host, port=port, log_level="warning")
+
+
+def _web_ui_health_url(host: str, port: int) -> str:
+    return f"http://{host}:{port}/api/health"
+
+
+def _web_ui_url(host: str, port: int) -> str:
+    return f"http://{host}:{port}"
+
+
+def _is_web_ui_available(host: str, port: int, timeout: float = 0.5) -> bool:
+    try:
+        with urllib.request.urlopen(_web_ui_health_url(host, port), timeout=timeout) as response:
+            return bool(response.status == 200)
+    except (urllib.error.URLError, TimeoutError, ValueError):
+        return False
+
+
+def ensure_local_web_ui(
+    host: str = "127.0.0.1",
+    port: int = 8000,
+    config_path: str = "config.yaml",
+    *,
+    open_browser: bool = True,
+    wait_timeout: float = 5.0,
+) -> str:
+    """Ensure a local web UI server is running, then optionally open it."""
+    if not _is_web_ui_available(host, port):
+        with _WEB_SERVER_LOCK:
+            thread = _WEB_SERVER_THREADS.get((host, port))
+            if thread is None or not thread.is_alive():
+                thread = Thread(
+                    target=serve_web_ui,
+                    kwargs={
+                        "host": host,
+                        "port": port,
+                        "config_path": config_path,
+                        "log_level": "error",
+                        "log_file": None,
+                    },
+                    name=f"gapbf-web-ui-{host}:{port}",
+                    daemon=True,
+                )
+                _WEB_SERVER_THREADS[(host, port)] = thread
+                thread.start()
+
+        deadline = time.monotonic() + wait_timeout
+        while time.monotonic() < deadline:
+            if _is_web_ui_available(host, port):
+                break
+            time.sleep(0.1)
+        else:
+            raise RuntimeError(
+                "Web UI did not become available at "
+                f"{_web_ui_url(host, port)} within {wait_timeout:.1f}s"
+            )
+
+    url = _web_ui_url(host, port)
+    if open_browser:
+        webbrowser.open(url)
+    return url
