@@ -19,6 +19,7 @@ dev = [
     "pytest>=9.0.2",
     "pytest-mock>=3.15.1",
     "ruff>=0.15.6",
+    "pre-commit>=4.3.0",
     "types-PyYAML>=6.0.12.20250915",
 ]
 
