@@ -46,6 +46,21 @@ Run and attempt metadata is stored in SQLite so interrupted sessions can be insp
 git clone git@github.com:robin-scharf/gapbf.git
 cd gapbf
 uv sync --dev
+cp config.example.yaml config.yaml
+uv run pre-commit install
+uv run pre-commit install --hook-type pre-push
+```
+
+This repo uses `pre-commit` as the Python equivalent of Husky:
+
+- `pre-commit` runs `ruff check` and `mypy` before each commit
+- `pre-push` runs the full `pytest` suite before each push
+
+Run the hooks across the whole repository at any time with:
+
+```bash
+uv run pre-commit run --all-files
+uv run pre-commit run --hook-stage pre-push --all-files
 ```
 
 ## Quick Start
@@ -67,6 +82,13 @@ Review current configuration and resume state:
 
 ```bash
 uv run gapbf status
+```
+
+Launch the local web UI:
+
+```bash
+uv run gapbf web
+uv run gapbf web --config config.yaml --host 127.0.0.1 --port 8000
 ```
 
 Run the brute-force process:
@@ -124,6 +146,8 @@ Important fields include:
 - `stdout_normal`
 - `stdout_success`
 - `stdout_error`
+
+The web UI exposes the same configuration surface with grid-aware limits and live validation. Prefix and suffix segments can be drawn directly on the board, excluded nodes can be toggled visually, and run progress plus attempt logs stream back into the browser while a search is active.
 
 Constrain the pattern space as aggressively as possible. Prefixes, suffixes, excluded nodes, and realistic path lengths have a much larger effect on runtime than implementation-level optimizations because TWRP remains the throughput bottleneck.
 
@@ -183,6 +207,14 @@ Run tests:
 
 ```bash
 uv run python -m pytest
+```
+
+Run the same quality gates used by the Git hooks:
+
+```bash
+uv run ruff check .
+uv run mypy src
+uv run pytest
 ```
 
 The project is packaged from [`src/gapbf`](./src/gapbf) and exposes the `gapbf` console script via [`pyproject.toml`](./pyproject.toml).
