@@ -1,4 +1,4 @@
-from pathlib import Path
+from threading import Thread
 
 from gapbf.Config import Config
 from gapbf.Database import RunDatabase
@@ -35,3 +35,22 @@ class TestRunDatabase:
         database.close()
 
         assert attempted == {"1234", "1478"}
+
+    def test_log_attempt_is_safe_from_worker_thread(self, tmp_path):
+        db_path = tmp_path / "gapbf.db"
+        config = Config(db_path=str(db_path), grid_size=3, path_min_length=4, path_max_length=9)
+
+        database = RunDatabase(str(db_path))
+        run = database.create_run(config, "SERIAL123", "a")
+
+        worker = Thread(
+            target=database.log_attempt,
+            args=(run.run_id, "1234", "Failed to decrypt", "normal_failure", 0, 15.0),
+        )
+        worker.start()
+        worker.join()
+
+        attempted = database.get_attempted_paths(config, "SERIAL123")
+        database.close()
+
+        assert attempted == {"1234"}

@@ -5,10 +5,32 @@ through an Android pattern lock grid using depth-first search.
 """
 
 import logging
+from concurrent.futures import Future
 from math import gcd
+from threading import Lock, Thread
 
 from .Config import valid_nodes_for_grid
 from .PathHandler import PathHandler
+
+
+def _run_async(callback) -> Future[int]:
+    future: Future[int] = Future()
+
+    def runner() -> None:
+        if not future.set_running_or_notify_cancel():
+            return
+        try:
+            future.set_result(callback())
+        except Exception as error:
+            future.set_exception(error)
+
+    Thread(target=runner, name="gapbf-total-paths", daemon=True).start()
+    return future
+
+
+def calculate_total_paths_async(path_finder: "PathFinder") -> Future[int]:
+    """Start exact total-path counting for a PathFinder in a background thread."""
+    return path_finder.calculate_total_paths_async()
 
 
 class PathFinder:
@@ -35,14 +57,13 @@ class PathFinder:
     ):
         if grid_size not in self._graphs:
             raise ValueError(
-                f'Unsupported grid size: {grid_size}. Supported sizes: {list(self._graphs.keys())}'
+                f"Unsupported grid size: {grid_size}. Supported sizes: {list(self._graphs.keys())}"
             )
 
         self._grid_size = grid_size
         self._graph = list(self._graphs[grid_size]["graph"])
         self._coordinates = {
-            node: (index % grid_size, index // grid_size)
-            for index, node in enumerate(self._graph)
+            node: (index % grid_size, index // grid_size) for index, node in enumerate(self._graph)
         }
         self._nodes_by_coordinate = {
             coordinate: node for node, coordinate in self._coordinates.items()
@@ -52,6 +73,8 @@ class PathFinder:
 
         self._handlers: list[PathHandler] = []
         self._total_paths: int | None = None
+        self._total_paths_future: Future[int] | None = None
+        self._total_paths_lock = Lock()
         self._path_min_len = path_min_len
         self._path_max_len = path_max_len
         self._path_max_node_distance = path_max_node_distance
@@ -126,11 +149,11 @@ class PathFinder:
 
         for node in self._path_prefix:
             if node in self._excluded_nodes:
-                raise ValueError(f'path_prefix contains excluded node: {node}')
+                raise ValueError(f"path_prefix contains excluded node: {node}")
             if node in visited:
-                raise ValueError('path_prefix cannot revisit nodes')
+                raise ValueError("path_prefix cannot revisit nodes")
             if previous is not None and not self._is_move_legal(previous, node, visited):
-                raise ValueError(f'illegal move in path_prefix: {previous} -> {node}')
+                raise ValueError(f"illegal move in path_prefix: {previous} -> {node}")
             visited.add(node)
             previous = node
 
@@ -141,7 +164,9 @@ class PathFinder:
         return all(blocker in visited for blocker in blockers)
 
     def _legal_moves(self, node: str, visited: set[str]) -> list[str]:
-        return [candidate for candidate in self._graph if self._is_move_legal(node, candidate, visited)]
+        return [
+            candidate for candidate in self._graph if self._is_move_legal(node, candidate, visited)
+        ]
 
     def _path_matches_constraints(self, path: list[str]) -> bool:
         if len(path) < self._path_min_len:
@@ -150,7 +175,7 @@ class PathFinder:
             return True
         if len(path) < len(self._path_suffix):
             return False
-        return path[-len(self._path_suffix):] == self._path_suffix
+        return path[-len(self._path_suffix) :] == self._path_suffix
 
     def _initial_search_states(self) -> list[tuple[str, list[str], set[str]]]:
         if self._path_prefix:
@@ -158,11 +183,7 @@ class PathFinder:
             initial_visited = set(initial_path)
             return [(self._path_prefix[-1], initial_path, initial_visited)]
 
-        return [
-            (node, [], set())
-            for node in self._graph
-            if node not in self._excluded_nodes
-        ]
+        return [(node, [], set()) for node in self._graph if node not in self._excluded_nodes]
 
     def _generate_paths(self, node: str, path: list[str], visited: set[str]):
         path.append(node)
@@ -191,12 +212,34 @@ class PathFinder:
         self._handlers.append(handler)
         self.logger.debug(f"Added handler: {handler.__class__.__name__}")
 
-    def process_path(self, path: list[str]) -> tuple[bool, list[str] | None]:
+    def process_path(
+        self, path: list[str], total_paths: int | None = None
+    ) -> tuple[bool, list[str] | None]:
         for handler in self._handlers:
-            success, result_path = handler.handle_path(path, self.total_paths)
+            success, result_path = handler.handle_path(path, total_paths)
             if success:
                 return True, result_path
         return False, None
+
+    def calculate_total_paths_async(self) -> Future[int]:
+        with self._total_paths_lock:
+            if self._total_paths is not None:
+                future: Future[int] = Future()
+                future.set_result(self._total_paths)
+                return future
+
+            if self._total_paths_future is not None and not self._total_paths_future.done():
+                return self._total_paths_future
+
+            def calculate_and_cache() -> int:
+                total_paths = self._calculate_total_paths()
+                with self._total_paths_lock:
+                    self._total_paths = total_paths
+                return total_paths
+
+            future = _run_async(calculate_and_cache)
+            self._total_paths_future = future
+            return future
 
     def _calculate_total_paths(self) -> int:
         total_paths = 0
@@ -229,9 +272,9 @@ class PathFinder:
         self.logger.info(f"Calculated {total_paths} total possible paths")
         return total_paths
 
-    def dfs(self) -> tuple[bool, list[str]]:
+    def dfs(self, total_paths: int | None = None) -> tuple[bool, list[str]]:
         for path in self:
-            success, result_path = self.process_path(path)
+            success, result_path = self.process_path(path, total_paths)
             if success:
                 return True, result_path or path
 

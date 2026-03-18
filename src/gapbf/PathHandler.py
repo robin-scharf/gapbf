@@ -1,7 +1,7 @@
-from abc import ABC, abstractmethod
 import logging
 import subprocess
 import time
+from abc import ABC, abstractmethod
 
 from .Config import Config
 from .Database import RunDatabase
@@ -17,7 +17,9 @@ class PathHandler(ABC):
         self.logger = logging.getLogger(self.__class__.__name__)
 
     @abstractmethod
-    def handle_path(self, path: list[str], total_paths: int | None = None) -> tuple[bool, list[str] | None]:
+    def handle_path(
+        self, path: list[str], total_paths: int | None = None
+    ) -> tuple[bool, list[str] | None]:
         raise NotImplementedError
 
 
@@ -40,7 +42,10 @@ class ADBHandler(PathHandler):
         self.current_path_number = len(self.attempted_paths)
 
         if self.current_path_number > 0:
-            self.logger.info(f"Resuming from previous session: {self.current_path_number} paths already attempted")
+            self.logger.info(
+                "Resuming from previous session: "
+                f"{self.current_path_number} paths already attempted"
+            )
 
         try:
             subprocess.run(["adb", "start-server"], check=True, capture_output=True)
@@ -52,9 +57,11 @@ class ADBHandler(PathHandler):
             self.logger.error("ADB command not found. Please install Android platform-tools")
             raise
 
-    def handle_path(self, path: list[str], total_paths: int | None = None) -> tuple[bool, list[str] | None]:
+    def handle_path(
+        self, path: list[str], total_paths: int | None = None
+    ) -> tuple[bool, list[str] | None]:
         self.current_path_number += 1
-        attempt_key = ''.join(path)
+        attempt_key = "".join(path)
 
         if attempt_key in self.attempted_paths:
             percentage = (self.current_path_number / total_paths * 100) if total_paths else 0
@@ -71,11 +78,17 @@ class ADBHandler(PathHandler):
             return False, None
 
         percentage = (self.current_path_number / total_paths * 100) if total_paths else 0
-        self.logger.info(f"Trying path {self.current_path_number}/{total_paths}: {path} (length: {len(path)})")
+        self.logger.info(
+            f"Trying path {self.current_path_number}/{total_paths}: {path} (length: {len(path)})"
+        )
 
-        formatted_path = ''.join(path)
+        formatted_path = "".join(path)
         if self.config.echo_commands:
-            command = ["adb", "shell", f"echo '[GAPBF] Attempting: {formatted_path}' && twrp decrypt {formatted_path}"]
+            command = [
+                "adb",
+                "shell",
+                f"echo '[GAPBF] Attempting: {formatted_path}' && twrp decrypt {formatted_path}",
+            ]
         else:
             command = ["adb", "shell", "twrp", "decrypt", formatted_path]
 
@@ -96,7 +109,9 @@ class ADBHandler(PathHandler):
                 -1,
                 (time.perf_counter() - started_at) * 1000,
             )
-            self.logger.error(f"ADB command timed out after {self.config.adb_timeout}s for path: {path}")
+            self.logger.error(
+                f"ADB command timed out after {self.config.adb_timeout}s for path: {path}"
+            )
             self.output.show_adb_timeout(self.current_path_number, total_paths)
             return False, None
         except Exception as error:
@@ -112,8 +127,8 @@ class ADBHandler(PathHandler):
             self.output.show_adb_error(self.current_path_number, total_paths, str(error))
             return False, None
 
-        stdout_safe = result.stdout.replace('\n', '\\n')
-        stderr_safe = result.stderr.replace('\n', '\\n') if result.stderr else ''
+        stdout_safe = result.stdout.replace("\n", "\\n")
+        stderr_safe = result.stderr.replace("\n", "\\n") if result.stderr else ""
         response = stdout_safe if not stderr_safe else f"stdout={stdout_safe}; stderr={stderr_safe}"
         duration_ms = (time.perf_counter() - started_at) * 1000
         self.attempted_paths.add(attempt_key)
@@ -146,6 +161,8 @@ class ADBHandler(PathHandler):
                 path,
                 self.config.attempt_delay,
             )
+            if self.config.attempt_delay > 0:
+                time.sleep(self.config.attempt_delay)
             return False, None
 
         self.database.log_attempt(
@@ -156,7 +173,9 @@ class ADBHandler(PathHandler):
             result.returncode,
             duration_ms,
         )
-        self.logger.error(f"Unexpected ADB response: returncode={result.returncode}, stderr={result.stderr}")
+        self.logger.error(
+            f"Unexpected ADB response: returncode={result.returncode}, stderr={result.stderr}"
+        )
         self.output.show_adb_unexpected(self.current_path_number, total_paths)
         return False, None
 
@@ -177,7 +196,9 @@ class TestHandler(PathHandler):
             test_path=self.test_path,
         )
 
-    def handle_path(self, path: list[str], total_paths: int | None = None) -> tuple[bool, list[str] | None]:
+    def handle_path(
+        self, path: list[str], total_paths: int | None = None
+    ) -> tuple[bool, list[str] | None]:
         self.current_path_number += 1
         percentage = (self.current_path_number / total_paths * 100) if total_paths else 0
 
@@ -214,7 +235,9 @@ class PrintHandler(PathHandler):
             col = index % self.grid_size
             self.node_positions[(row, col)] = node
 
-    def handle_path(self, path: list[str], total_paths: int | None = None) -> tuple[bool, list[str] | None]:
+    def handle_path(
+        self, path: list[str], total_paths: int | None = None
+    ) -> tuple[bool, list[str] | None]:
         path_rows = self.render_path(path)
         steps_rows = self.render_path_steps(path)
         self.output.show_print_path(path, path_rows, steps_rows)

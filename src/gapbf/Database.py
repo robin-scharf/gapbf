@@ -2,14 +2,15 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from datetime import datetime, timezone
 import hashlib
 import json
-from pathlib import Path
 import sqlite3
 import subprocess
 import uuid
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from pathlib import Path
+from threading import Lock
 
 from .Config import Config
 
@@ -40,12 +41,16 @@ def detect_device_id(timeout_seconds: int = 30) -> str:
             check=True,
         )
     except FileNotFoundError as error:
-        raise RuntimeError("ADB command not found. Please install Android platform-tools") from error
+        raise RuntimeError(
+            "ADB command not found. Please install Android platform-tools"
+        ) from error
     except subprocess.CalledProcessError as error:
         stderr = (error.stderr or "").strip()
         raise RuntimeError(f"Failed to determine ADB device id: {stderr or error}") from error
     except subprocess.TimeoutExpired as error:
-        raise RuntimeError(f"Timed out while determining device id after {timeout_seconds}s") from error
+        raise RuntimeError(
+            f"Timed out while determining device id after {timeout_seconds}s"
+        ) from error
 
     serial = result.stdout.strip()
     if not serial or serial in {"unknown", "", "<empty>"}:
@@ -79,51 +84,55 @@ class RunDatabase:
 
     def __init__(self, db_path: str):
         self.path = normalize_db_path(db_path)
-        self.connection = sqlite3.connect(self.path)
+        self._lock = Lock()
+        self.connection = sqlite3.connect(self.path, check_same_thread=False)
         self.connection.row_factory = sqlite3.Row
-        self.connection.execute("PRAGMA foreign_keys = ON")
+        with self._lock:
+            self.connection.execute("PRAGMA foreign_keys = ON")
         self._ensure_schema()
 
     def close(self) -> None:
         """Close the SQLite connection."""
-        self.connection.close()
+        with self._lock:
+            self.connection.close()
 
     def _ensure_schema(self) -> None:
-        self.connection.executescript(
-            """
-            CREATE TABLE IF NOT EXISTS runs (
-                run_id TEXT PRIMARY KEY,
-                started_at TEXT NOT NULL,
-                finished_at TEXT,
-                status TEXT NOT NULL,
-                mode TEXT NOT NULL,
-                device_id TEXT NOT NULL,
-                config_snapshot TEXT NOT NULL,
-                config_fingerprint TEXT NOT NULL,
-                successful_attempt TEXT
-            );
+        with self._lock:
+            self.connection.executescript(
+                """
+                CREATE TABLE IF NOT EXISTS runs (
+                    run_id TEXT PRIMARY KEY,
+                    started_at TEXT NOT NULL,
+                    finished_at TEXT,
+                    status TEXT NOT NULL,
+                    mode TEXT NOT NULL,
+                    device_id TEXT NOT NULL,
+                    config_snapshot TEXT NOT NULL,
+                    config_fingerprint TEXT NOT NULL,
+                    successful_attempt TEXT
+                );
 
-            CREATE INDEX IF NOT EXISTS idx_runs_device_fingerprint
-            ON runs (device_id, config_fingerprint);
+                CREATE INDEX IF NOT EXISTS idx_runs_device_fingerprint
+                ON runs (device_id, config_fingerprint);
 
-            CREATE TABLE IF NOT EXISTS attempts (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                run_id TEXT NOT NULL,
-                timestamp TEXT NOT NULL,
-                attempt TEXT NOT NULL,
-                response TEXT NOT NULL,
-                result_classification TEXT NOT NULL,
-                returncode INTEGER,
-                duration_ms REAL NOT NULL,
-                FOREIGN KEY(run_id) REFERENCES runs(run_id) ON DELETE CASCADE
-            );
+                CREATE TABLE IF NOT EXISTS attempts (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    run_id TEXT NOT NULL,
+                    timestamp TEXT NOT NULL,
+                    attempt TEXT NOT NULL,
+                    response TEXT NOT NULL,
+                    result_classification TEXT NOT NULL,
+                    returncode INTEGER,
+                    duration_ms REAL NOT NULL,
+                    FOREIGN KEY(run_id) REFERENCES runs(run_id) ON DELETE CASCADE
+                );
 
-            CREATE INDEX IF NOT EXISTS idx_attempts_run_id ON attempts (run_id);
-            CREATE INDEX IF NOT EXISTS idx_attempts_attempt ON attempts (attempt);
-            CREATE INDEX IF NOT EXISTS idx_attempts_result ON attempts (result_classification);
-            """
-        )
-        self.connection.commit()
+                CREATE INDEX IF NOT EXISTS idx_attempts_run_id ON attempts (run_id);
+                CREATE INDEX IF NOT EXISTS idx_attempts_attempt ON attempts (attempt);
+                CREATE INDEX IF NOT EXISTS idx_attempts_result ON attempts (result_classification);
+                """
+            )
+            self.connection.commit()
 
     def _config_snapshot(self, config: Config) -> dict[str, object]:
         snapshot = config.model_dump()
@@ -139,62 +148,86 @@ class RunDatabase:
         run_id = str(uuid.uuid4())
         fingerprint = self.config_fingerprint(config)
         snapshot_json = json.dumps(self._config_snapshot(config), sort_keys=True)
-        self.connection.execute(
-            """
-            INSERT INTO runs (run_id, started_at, status, mode, device_id, config_snapshot, config_fingerprint)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-            """,
-            (run_id, utc_now_iso(), "running", mode, device_id, snapshot_json, fingerprint),
+        with self._lock:
+            self.connection.execute(
+                """
+                INSERT INTO runs (
+                    run_id, started_at, status, mode, device_id, config_snapshot, config_fingerprint
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    run_id,
+                    utc_now_iso(),
+                    "running",
+                    mode,
+                    device_id,
+                    snapshot_json,
+                    fingerprint,
+                ),
+            )
+            self.connection.commit()
+        return RunInfo(
+            run_id=run_id,
+            config_fingerprint=fingerprint,
+            device_id=device_id,
         )
-        self.connection.commit()
-        return RunInfo(run_id=run_id, config_fingerprint=fingerprint, device_id=device_id)
 
-    def finish_run(self, run_id: str, status: str, successful_attempt: str | None = None) -> None:
-        self.connection.execute(
-            """
-            UPDATE runs
-            SET finished_at = ?, status = ?, successful_attempt = COALESCE(?, successful_attempt)
-            WHERE run_id = ?
-            """,
-            (utc_now_iso(), status, successful_attempt, run_id),
-        )
-        self.connection.commit()
+    def finish_run(
+        self,
+        run_id: str,
+        status: str,
+        successful_attempt: str | None = None,
+    ) -> None:
+        with self._lock:
+            self.connection.execute(
+                """
+                UPDATE runs
+                SET finished_at = ?, status = ?,
+                    successful_attempt = COALESCE(?, successful_attempt)
+                WHERE run_id = ?
+                """,
+                (utc_now_iso(), status, successful_attempt, run_id),
+            )
+            self.connection.commit()
 
     def get_attempted_paths(self, config: Config, device_id: str) -> set[str]:
         fingerprint = self.config_fingerprint(config)
-        rows = self.connection.execute(
-            """
-            SELECT DISTINCT attempts.attempt
-            FROM attempts
-            INNER JOIN runs ON runs.run_id = attempts.run_id
-            WHERE runs.device_id = ? AND runs.config_fingerprint = ?
-            """,
-            (device_id, fingerprint),
-        ).fetchall()
+        with self._lock:
+            rows = self.connection.execute(
+                """
+                SELECT DISTINCT attempts.attempt
+                FROM attempts
+                INNER JOIN runs ON runs.run_id = attempts.run_id
+                WHERE runs.device_id = ? AND runs.config_fingerprint = ?
+                """,
+                (device_id, fingerprint),
+            ).fetchall()
         return {row[0] for row in rows}
 
     def get_resume_info(self, config: Config, device_id: str) -> ResumeInfo:
         fingerprint = self.config_fingerprint(config)
-        attempted_count_row = self.connection.execute(
-            """
-            SELECT COUNT(DISTINCT attempts.attempt) AS attempted_count
-            FROM attempts
-            INNER JOIN runs ON runs.run_id = attempts.run_id
-            WHERE runs.device_id = ? AND runs.config_fingerprint = ?
-            """,
-            (device_id, fingerprint),
-        ).fetchone()
+        with self._lock:
+            attempted_count_row = self.connection.execute(
+                """
+                SELECT COUNT(DISTINCT attempts.attempt) AS attempted_count
+                FROM attempts
+                INNER JOIN runs ON runs.run_id = attempts.run_id
+                WHERE runs.device_id = ? AND runs.config_fingerprint = ?
+                """,
+                (device_id, fingerprint),
+            ).fetchone()
 
-        latest_row = self.connection.execute(
-            """
-            SELECT run_id, started_at, finished_at, status, successful_attempt
-            FROM runs
-            WHERE device_id = ? AND config_fingerprint = ?
-            ORDER BY started_at DESC
-            LIMIT 1
-            """,
-            (device_id, fingerprint),
-        ).fetchone()
+            latest_row = self.connection.execute(
+                """
+                SELECT run_id, started_at, finished_at, status, successful_attempt
+                FROM runs
+                WHERE device_id = ? AND config_fingerprint = ?
+                ORDER BY started_at DESC
+                LIMIT 1
+                """,
+                (device_id, fingerprint),
+            ).fetchone()
 
         return ResumeInfo(
             attempted_count=int(attempted_count_row["attempted_count"] or 0),
@@ -202,7 +235,9 @@ class RunDatabase:
             latest_started_at=latest_row["started_at"] if latest_row else None,
             latest_finished_at=latest_row["finished_at"] if latest_row else None,
             latest_status=latest_row["status"] if latest_row else None,
-            latest_successful_attempt=latest_row["successful_attempt"] if latest_row else None,
+            latest_successful_attempt=(
+                latest_row["successful_attempt"] if latest_row else None
+            ),
         )
 
     def log_attempt(
@@ -214,34 +249,47 @@ class RunDatabase:
         returncode: int | None,
         duration_ms: float,
     ) -> None:
-        self.connection.execute(
-            """
-            INSERT INTO attempts (run_id, timestamp, attempt, response, result_classification, returncode, duration_ms)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-            """,
-            (run_id, utc_now_iso(), attempt, response, result_classification, returncode, duration_ms),
-        )
-        self.connection.commit()
+        with self._lock:
+            self.connection.execute(
+                """
+                INSERT INTO attempts (
+                    run_id, timestamp, attempt, response,
+                    result_classification, returncode, duration_ms
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    run_id,
+                    utc_now_iso(),
+                    attempt,
+                    response,
+                    result_classification,
+                    returncode,
+                    duration_ms,
+                ),
+            )
+            self.connection.commit()
 
     def list_runs(self, limit: int = 20) -> list[sqlite3.Row]:
         """Return recent runs with attempt counts for CLI display."""
-        rows = self.connection.execute(
-            """
-            SELECT
-                runs.run_id,
-                runs.started_at,
-                runs.finished_at,
-                runs.status,
-                runs.mode,
-                runs.device_id,
-                runs.successful_attempt,
-                COUNT(attempts.id) AS attempt_count
-            FROM runs
-            LEFT JOIN attempts ON attempts.run_id = runs.run_id
-            GROUP BY runs.run_id
-            ORDER BY runs.started_at DESC
-            LIMIT ?
-            """,
-            (limit,),
-        ).fetchall()
+        with self._lock:
+            rows = self.connection.execute(
+                """
+                SELECT
+                    runs.run_id,
+                    runs.started_at,
+                    runs.finished_at,
+                    runs.status,
+                    runs.mode,
+                    runs.device_id,
+                    runs.successful_attempt,
+                    COUNT(attempts.id) AS attempt_count
+                FROM runs
+                LEFT JOIN attempts ON attempts.run_id = runs.run_id
+                GROUP BY runs.run_id
+                ORDER BY runs.started_at DESC
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
         return list(rows)
