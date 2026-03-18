@@ -1,45 +1,15 @@
-"""Path generation and traversal for Android pattern brute forcing.
-
-This module provides the PathFinder class which generates all valid paths
-through an Android pattern lock grid using depth-first search.
-"""
-
 import logging
 from concurrent.futures import Future
 from math import gcd
-from threading import Lock, Thread
+from threading import Lock
 
 from .Config import valid_nodes_for_grid
+from .pathfinder_async import _run_async, calculate_total_paths_async
 from .PathHandler import PathHandler
 
 
-def _run_async(callback) -> Future[int]:
-    future: Future[int] = Future()
-
-    def runner() -> None:
-        if not future.set_running_or_notify_cancel():
-            return
-        try:
-            future.set_result(callback())
-        except Exception as error:
-            future.set_exception(error)
-
-    Thread(target=runner, name="gapbf-total-paths", daemon=True).start()
-    return future
-
-
-def calculate_total_paths_async(path_finder: "PathFinder") -> Future[int]:
-    """Start exact total-path counting for a PathFinder in a background thread."""
-    return path_finder.calculate_total_paths_async()
-
-
 class PathFinder:
-    """Generate and process Android pattern paths using rule-based legality.
-
-    A move is legal when any intermediate nodes on the straight line between two
-    points have already been visited. This matches the Android passthrough rule
-    for standard pattern grids and generalizes to larger grids.
-    """
+    """Generate Android pattern paths using Android-style legality rules."""
 
     _graphs: dict[int, dict[str, list[str]]] = {
         size: {"graph": valid_nodes_for_grid(size)} for size in (3, 4, 5, 6)
@@ -143,10 +113,8 @@ class PathFinder:
     def _validate_prefix(self) -> None:
         if not self._path_prefix:
             return
-
         visited: set[str] = set()
         previous: str | None = None
-
         for node in self._path_prefix:
             if node in self._excluded_nodes:
                 raise ValueError(f"path_prefix contains excluded node: {node}")
@@ -189,20 +157,16 @@ class PathFinder:
             initial_path = list(self._path_prefix[:-1])
             initial_visited = set(initial_path)
             return [(self._path_prefix[-1], initial_path, initial_visited)]
-
         return [(node, [], set()) for node in self._graph if node not in self._excluded_nodes]
 
     def _generate_paths(self, node: str, path: list[str], visited: set[str]):
         path.append(node)
         visited.add(node)
-
         try:
             if self._path_matches_constraints(path):
                 yield list(path)
-
             if len(path) >= self._path_max_len:
                 return
-
             for neighbor in self._legal_moves(node, visited):
                 yield from self._generate_paths(neighbor, path, visited)
         finally:
@@ -253,17 +217,13 @@ class PathFinder:
 
         def dfs_counter(node: str, path: list[str], visited: set[str]) -> None:
             nonlocal total_paths
-
             path.append(node)
             visited.add(node)
-
             try:
                 if self._path_matches_constraints(path):
                     total_paths += 1
-
                 if len(path) >= self._path_max_len:
                     return
-
                 for neighbor in self._legal_moves(node, visited):
                     dfs_counter(neighbor, path, visited)
             finally:
@@ -284,5 +244,7 @@ class PathFinder:
             success, result_path = self.process_path(path, total_paths)
             if success:
                 return True, result_path or path
-
         return False, []
+
+
+__all__ = ["PathFinder", "calculate_total_paths_async"]

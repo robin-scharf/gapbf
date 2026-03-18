@@ -158,9 +158,7 @@ class TestADBHandler:
         database.get_attempted_paths.return_value = set()
         start_result = mocker.Mock(returncode=0, stdout="", stderr="")
         decrypt_result = mocker.Mock(returncode=0, stdout="Error occurred", stderr="")
-        mocker.patch(
-            "gapbf.PathHandler.subprocess.run", side_effect=[start_result, decrypt_result]
-        )
+        mocker.patch("gapbf.PathHandler.subprocess.run", side_effect=[start_result, decrypt_result])
         reporter = mocker.Mock()
 
         handler = ADBHandler(

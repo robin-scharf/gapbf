@@ -18,7 +18,7 @@ def test_index_contains_success_banner(tmp_path):
     assert 'id="downloadCsvButton"' in response.text
     assert 'id="finishedAtValue"' in response.text
     assert 'id="durationValue"' in response.text
-    assert '<th>Duration</th>' not in response.text
+    assert "<th>Duration</th>" not in response.text
 
 
 def test_load_config_endpoint_returns_config_and_meta(tmp_path):
@@ -99,7 +99,7 @@ def test_save_config_endpoint_persists_yaml(tmp_path):
     saved_text = config_path.read_text(encoding="utf-8")
     assert "grid_size: 4" in saved_text
     assert "path_prefix:" in saved_text
-    assert "- '1'" in saved_text or "- \"1\"" in saved_text or "- '2'" in saved_text
+    assert "- '1'" in saved_text or '- "1"' in saved_text or "- '2'" in saved_text
 
 
 def test_start_run_in_test_mode_completes_and_updates_state(tmp_path):

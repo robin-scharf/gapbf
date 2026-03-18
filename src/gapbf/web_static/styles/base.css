@@ -1,0 +1,85 @@
+:root {
+  --background: oklch(0.985 0 0);
+  --surface: oklch(1 0 0 / 0.9);
+  --surface-strong: oklch(0.975 0 0);
+  --border: oklch(0.91 0 0);
+  --border-strong: oklch(0.82 0 0);
+  --text: oklch(0.2 0 0);
+  --muted: oklch(0.52 0 0);
+  --muted-strong: oklch(0.36 0 0);
+  --start: oklch(0.63 0.19 146);
+  --stop: oklch(0.62 0.21 24);
+  --prefix: oklch(0.73 0.17 145);
+  --suffix: oklch(0.67 0.16 240);
+  --excluded: oklch(0.68 0.18 28);
+  --live: oklch(0.7 0.13 215);
+  --shadow: 0 1px 2px oklch(0.15 0 0 / 0.08), 0 10px 28px oklch(0.15 0 0 / 0.04);
+  --radius: 18px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  color-scheme: light;
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  color: var(--text);
+  font-family: "Inter", sans-serif;
+  background:
+    linear-gradient(180deg, oklch(0.995 0 0), var(--background) 18%, oklch(0.972 0 0)),
+    radial-gradient(circle at top, oklch(0.93 0 0 / 0.45), transparent 45%);
+  overflow: hidden;
+}
+
+button,
+input,
+select,
+table {
+  font: inherit;
+}
+
+button,
+input,
+select,
+.top-link {
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease,
+    box-shadow 160ms ease,
+    color 160ms ease,
+    transform 160ms ease;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+.top-link:focus-visible,
+.sequence-item-selectable:focus-visible,
+.clear-icon-button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px oklch(0.88 0 0 / 0.9);
+  border-color: var(--border-strong);
+}
+
+.overline,
+.section-label,
+label > span,
+.sequence-title,
+.stat-row span,
+.log-table th {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.hidden {
+  display: none;
+}
