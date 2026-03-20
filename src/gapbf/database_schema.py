@@ -32,6 +32,7 @@ class DatabaseSchemaMixin:
                     timestamp TEXT NOT NULL,
                     device_id TEXT NOT NULL DEFAULT '',
                     grid_size INTEGER NOT NULL DEFAULT 3,
+                    attempt_hash TEXT NOT NULL DEFAULT '',
                     attempt TEXT NOT NULL,
                     response TEXT NOT NULL,
                     stdout TEXT NOT NULL DEFAULT '',
@@ -50,15 +51,18 @@ class DatabaseSchemaMixin:
             self._ensure_column_exists("runs", "grid_size", "INTEGER NOT NULL DEFAULT 3")
             self._ensure_column_exists("attempts", "device_id", "TEXT NOT NULL DEFAULT ''")
             self._ensure_column_exists("attempts", "grid_size", "INTEGER NOT NULL DEFAULT 3")
+            self._ensure_column_exists("attempts", "attempt_hash", "TEXT NOT NULL DEFAULT ''")
             self._ensure_column_exists("attempts", "stdout", "TEXT NOT NULL DEFAULT ''")
             self._ensure_column_exists("attempts", "stderr", "TEXT NOT NULL DEFAULT ''")
             self._backfill_runs_metadata()
             self._backfill_attempt_metadata()
+            self._backfill_attempt_hashes()
             self._deduplicate_attempts()
+            self.connection.execute("DROP INDEX IF EXISTS idx_attempts_device_grid_attempt_unique")
             self.connection.execute(
                 """
-                CREATE UNIQUE INDEX IF NOT EXISTS idx_attempts_device_grid_attempt_unique
-                ON attempts (device_id, grid_size, attempt)
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_attempts_attempt_hash_unique
+                ON attempts (attempt_hash)
                 """
             )
             self.connection.commit()
@@ -114,20 +118,54 @@ class DatabaseSchemaMixin:
                     (run_row["device_id"], run_row["grid_size"], row["id"]),
                 )
 
+    def _backfill_attempt_hashes(self) -> None:
+        rows = self.connection.execute(
+            """
+            SELECT id, device_id, grid_size, attempt
+            FROM attempts
+            WHERE attempt_hash = '' OR attempt_hash IS NULL
+            """
+        ).fetchall()
+        for row in rows:
+            self.connection.execute(
+                "UPDATE attempts SET attempt_hash = ? WHERE id = ?",
+                (
+                    self.attempt_hash_for(
+                        row["device_id"],
+                        int(row["grid_size"] or 3),
+                        row["attempt"],
+                    ),
+                    row["id"],
+                ),
+            )
+
     def _deduplicate_attempts(self) -> None:
         duplicate_rows = self.connection.execute(
             """
-            SELECT device_id, grid_size, attempt, MIN(id) AS keep_id
+            SELECT attempt_hash
             FROM attempts
-            GROUP BY device_id, grid_size, attempt
+            GROUP BY attempt_hash
             HAVING COUNT(*) > 1
             """
         ).fetchall()
         for row in duplicate_rows:
+            ranked_rows = self.connection.execute(
+                """
+                SELECT id, result_classification
+                FROM attempts
+                WHERE attempt_hash = ?
+                ORDER BY
+                    CASE result_classification
+                        WHEN 'success' THEN 0
+                        WHEN 'normal_failure' THEN 1
+                        ELSE 2
+                    END,
+                    id DESC
+                """,
+                (row["attempt_hash"],),
+            ).fetchall()
+            keep_id = ranked_rows[0]["id"]
             self.connection.execute(
-                (
-                    "DELETE FROM attempts WHERE device_id = ? AND grid_size = ? "
-                    "AND attempt = ? AND id <> ?"
-                ),
-                (row["device_id"], row["grid_size"], row["attempt"], row["keep_id"]),
+                "DELETE FROM attempts WHERE attempt_hash = ? AND id <> ?",
+                (row["attempt_hash"], keep_id),
             )

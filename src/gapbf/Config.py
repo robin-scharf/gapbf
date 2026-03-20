@@ -52,6 +52,8 @@ class Config(BaseModel):
     path_min_length: int = Field(default=4, ge=4)
     path_max_length: int = Field(default=9, ge=1)
     path_max_node_distance: int = Field(default=1, ge=1)
+    no_diagonal_crossings: bool = False
+    no_perpendicular_crossings: bool = False
     path_prefix: list[str] = Field(default_factory=list)
     path_suffix: list[str] = Field(default_factory=list)
     excluded_nodes: list[str] = Field(default_factory=list)
@@ -64,6 +66,18 @@ class Config(BaseModel):
     adb_timeout: int = Field(default=30, ge=1)
     total_paths: int = Field(default=0, ge=0)
     echo_commands: bool = True
+
+    @model_validator(mode="before")
+    @classmethod
+    def apply_dynamic_defaults(cls, data: Any) -> Any:
+        """Apply defaults that depend on other config values."""
+        if not isinstance(data, dict):
+            return data
+
+        normalized = dict(data)
+        grid_size = int(normalized.get("grid_size", 3))
+        normalized.setdefault("path_max_node_distance", max(1, grid_size - 1))
+        return normalized
 
     @field_validator("grid_size")
     @classmethod
@@ -176,7 +190,14 @@ class Config(BaseModel):
             "grid_size": config_data.get("grid_size", 3),
             "path_min_length": config_data.get("path_min_length", 4),
             "path_max_length": config_data.get("path_max_length", 9),
-            "path_max_node_distance": config_data.get("path_max_node_distance", 1),
+            "path_max_node_distance": config_data.get(
+                "path_max_node_distance",
+                max(1, int(config_data.get("grid_size", 3)) - 1),
+            ),
+            "no_diagonal_crossings": config_data.get("no_diagonal_crossings", False),
+            "no_perpendicular_crossings": config_data.get(
+                "no_perpendicular_crossings", False
+            ),
             "path_prefix": to_string_list(config_data.get("path_prefix", [])),
             "path_suffix": to_string_list(config_data.get("path_suffix", [])),
             "excluded_nodes": to_string_list(config_data.get("excluded_nodes", [])),

@@ -133,7 +133,7 @@ class Output:
     ) -> None:
         messages = [
             f"[TEST] Grid size: {grid_size}",
-            f"[TEST] Path max node distance: {path_max_node_distance}",
+            f"[TEST] Move distance limit: {path_max_node_distance}",
             f"[TEST] Path prefix: {path_prefix}",
             f"[TEST] Path suffix: {path_suffix}",
             f"[TEST] Excluded nodes: {excluded_nodes}",

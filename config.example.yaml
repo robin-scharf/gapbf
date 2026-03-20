@@ -8,7 +8,13 @@ stdout_error: ''
 stdout_normal: Failed to decrypt
 stdout_success: Data successfully decrypted
 path_max_length: 9
-path_max_node_distance: 1
+# User-defined move-distance limiter.
+# For a 3x3 grid the full theoretical range is 2, for 4x4 it is 3,
+# for 5x5 it is 4, and for 6x6 it is 5.
+# Lower values prune long jumps; higher values up to the grid maximum keep them.
+path_max_node_distance: 2
+no_diagonal_crossings: false
+no_perpendicular_crossings: false
 path_min_length: 4
 path_prefix: []
 path_suffix: []

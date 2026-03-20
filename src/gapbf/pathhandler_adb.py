@@ -27,8 +27,11 @@ class ADBHandler(PathHandler):
         self.database = database
         self.run_id = run_id
         self.device_id = device_id
-        self.attempted_paths = self.database.get_attempted_paths(config, device_id)
-        self.current_path_number = len(self.attempted_paths)
+        self.terminal_attempt_history = self.database.get_terminal_attempt_history(
+            config,
+            device_id,
+        )
+        self.current_path_number = len(self.terminal_attempt_history)
 
         if self.current_path_number > 0:
             self.logger.info(
@@ -55,11 +58,21 @@ class ADBHandler(PathHandler):
 
         self.current_path_number += 1
         attempt_key = "".join(path)
+        attempt_hash = self.database.attempt_hash_for(
+            self.device_id,
+            self.config.grid_size,
+            attempt_key,
+        )
+        known_result = self.terminal_attempt_history.get(attempt_hash)
 
-        if attempt_key in self.attempted_paths:
+        if known_result is not None:
             percentage = (self.current_path_number / total_paths * 100) if total_paths else 0
+            if known_result.result_classification == "success":
+                self.logger.info("Returning cached successful path for device %s", self.device_id)
+                self.output.show_adb_success(path)
+                return True, path
             self.output.show_adb_skip(self.current_path_number, total_paths, percentage, path)
-            self.logger.info(f"Skipping previously attempted path: {path}")
+            self.logger.info(f"Skipping previously failed path: {path}")
             return False, None
 
         percentage = (self.current_path_number / total_paths * 100) if total_paths else 0
@@ -96,7 +109,6 @@ class ADBHandler(PathHandler):
                 stdout="",
                 stderr="",
             )
-            self.attempted_paths.add(attempt_key)
             self.logger.error(
                 f"ADB command timed out after {self.config.adb_timeout}s for path: {path}"
             )
@@ -113,14 +125,12 @@ class ADBHandler(PathHandler):
                 stdout="",
                 stderr=str(error),
             )
-            self.attempted_paths.add(attempt_key)
             self.logger.error(f"Failed to execute ADB command: {error}")
             self.output.show_adb_error(self.current_path_number, total_paths, str(error))
             return False, None
 
         classified_result = self._classify_result(result)
         duration_ms = (time.perf_counter() - started_at) * 1000
-        self.attempted_paths.add(attempt_key)
         self.database.log_attempt(
             self.run_id,
             attempt_key,
@@ -131,6 +141,14 @@ class ADBHandler(PathHandler):
             stdout=classified_result.stdout,
             stderr=classified_result.stderr,
         )
+        if classified_result.classification in {"normal_failure", "success"}:
+            terminal_entry = self.database.get_terminal_attempt_entry(
+                self.config,
+                self.device_id,
+                attempt_key,
+            )
+            if terminal_entry is not None:
+                self.terminal_attempt_history[attempt_hash] = terminal_entry
 
         if classified_result.classification == "success":
             self.output.show_adb_success(path)

@@ -32,13 +32,15 @@ app = typer.Typer(
 
 def create_path_finder(config: Config) -> PathFinder:
     return PathFinder(
-        config.grid_size,
-        config.path_min_length,
-        config.path_max_length,
-        config.path_max_node_distance,
-        config.path_prefix,
-        config.path_suffix,
-        config.excluded_nodes,
+        grid_size=config.grid_size,
+        path_min_len=config.path_min_length,
+        path_max_len=config.path_max_length,
+        path_max_node_distance=config.path_max_node_distance,
+        path_prefix=config.path_prefix,
+        path_suffix=config.path_suffix,
+        excluded_nodes=config.excluded_nodes,
+        no_diagonal_crossings=config.no_diagonal_crossings,
+        no_perpendicular_crossings=config.no_perpendicular_crossings,
     )
 
 

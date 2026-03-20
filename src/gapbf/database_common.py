@@ -7,6 +7,8 @@ from pathlib import Path
 
 from .Config import Config
 
+TERMINAL_ATTEMPT_CLASSIFICATIONS = frozenset({"normal_failure", "success"})
+
 
 def utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
@@ -60,6 +62,13 @@ class ResumeInfo:
     latest_finished_at: str | None
     latest_status: str | None
     latest_successful_attempt: str | None
+
+
+@dataclass(frozen=True)
+class AttemptHistoryEntry:
+    attempt: str
+    attempt_hash: str
+    result_classification: str
 
 
 def stale_run_timeout_seconds(config: Config) -> int:

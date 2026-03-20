@@ -11,7 +11,7 @@ It is intended for legitimate device recovery scenarios where you control the de
 - Typer-based CLI with Rich output
 - SQLite-backed run history and attempt persistence
 - Resume-aware status reporting
-- Correctness-focused path generation for Android-style pattern movement rules
+- Geometric path generation with Android-style blocker rules plus optional user-defined distance pruning
 - Tested with `pytest` and packaged via `uv`
 
 ## Constraints
@@ -147,6 +147,16 @@ Important fields include:
 - `stdout_success`
 - `stdout_error`
 
+`path_max_node_distance` is a user-defined search limiter, not part of the
+underlying blocker legality check. It caps how far a single move may travel in
+grid coordinates.
+
+- `1` keeps moves to direct neighbors
+- `grid_size - 1` allows the full theoretical move range for the selected grid
+- intermediate values intentionally prune longer jumps to reduce the search space
+
+By default, GAPBF now uses the theoretical maximum for the selected grid, so a 3x3 config defaults to `2`, a 4x4 config to `3`, and so on up to `5` for 6x6.
+
 The web UI exposes the same configuration surface with grid-aware limits and live
 validation. Prefix and suffix segments can be drawn directly on the board,
 excluded nodes can be toggled visually, and run progress plus attempt logs
@@ -159,7 +169,10 @@ bottleneck.
 
 ## Grid Mappings
 
-3x3, 4x4, and 5x5 pattern grids are supported explicitly. The 6x6 mapping remains an informed assumption based on available TWRP and community references and is not yet independently verified.
+GAPBF supports 3x3, 4x4, 5x5, and 6x6 pattern grids. Availability of non-3x3
+grids depends on the device, ROM, and recovery implementation you are working
+with, so treat the larger layouts as environment-dependent rather than assuming
+every Android build exposes the same settings UI.
 
 Example 3x3 grid:
 

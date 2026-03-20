@@ -6,6 +6,8 @@ import sqlite3
 from threading import Lock
 
 from .database_common import (
+    TERMINAL_ATTEMPT_CLASSIFICATIONS,
+    AttemptHistoryEntry,
     ResumeInfo,
     RunInfo,
     detect_device_id,
@@ -18,6 +20,9 @@ from .database_schema import DatabaseSchemaMixin
 
 
 class RunDatabase(DatabaseSchemaMixin, DatabaseOperationsMixin):
+    _lock: Lock
+    connection: sqlite3.Connection
+
     def __init__(self, db_path: str):
         self.path = normalize_db_path(db_path)
         self._lock = Lock()
@@ -37,9 +42,11 @@ class RunDatabase(DatabaseSchemaMixin, DatabaseOperationsMixin):
 
 
 __all__ = [
+    "AttemptHistoryEntry",
     "ResumeInfo",
     "RunDatabase",
     "RunInfo",
+    "TERMINAL_ATTEMPT_CLASSIFICATIONS",
     "detect_device_id",
     "normalize_db_path",
     "stale_run_timeout_seconds",

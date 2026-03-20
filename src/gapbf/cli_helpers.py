@@ -77,6 +77,7 @@ def print_dry_run_summary(config: Config, total_paths: int | None, path_finder: 
     summary.add_row("Total paths", format_total_paths(total_paths))
     summary.add_row("Grid", f"{config.grid_size}x{config.grid_size}")
     summary.add_row("Length", f"{config.path_min_length} to {config.path_max_length}")
+    summary.add_row("Move distance limit", str(config.path_max_node_distance))
     summary.add_row("Prefix", str(config.path_prefix or "None"))
     summary.add_row("Suffix", str(config.path_suffix or "None"))
     summary.add_row(
@@ -111,6 +112,7 @@ def print_run_summary(
     summary.add_column("Value")
     summary.add_row("Grid", f"{config.grid_size}x{config.grid_size}")
     summary.add_row("Path length", f"{config.path_min_length} to {config.path_max_length}")
+    summary.add_row("Move distance limit", str(config.path_max_node_distance))
     summary.add_row("Prefix", str(config.path_prefix or "None"))
     summary.add_row("Suffix", str(config.path_suffix or "None"))
     summary.add_row("Excluded", str(config.excluded_nodes or "None"))

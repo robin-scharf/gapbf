@@ -158,7 +158,7 @@ def test_open_run_session_creates_persistent_run_and_attaches_handlers(mocker):
         latest_started_at="2026-03-18T09:00:00+00:00",
         latest_finished_at=None,
         latest_status="interrupted",
-        latest_successful_attempt=None,
+        latest_successful_attempt="1236",
     )
     database.create_run.return_value = mocker.Mock(run_id="run-1")
     mocker.patch("gapbf.runtime.create_path_finder", return_value=path_finder)
@@ -173,6 +173,7 @@ def test_open_run_session_creates_persistent_run_and_attaches_handlers(mocker):
     assert session.run_id == "run-1"
     assert session.device_id == "SERIAL123"
     assert session.resume_info is database.get_resume_info.return_value
+    assert session.known_successful_attempt == "1236"
     add_handlers_mock.assert_called_once()
     session.close()
     database.close.assert_called_once()

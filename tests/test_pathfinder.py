@@ -120,6 +120,28 @@ class TestPathFinder:
 
         assert pf._excluded_nodes == {"5", "6"}
 
+    def test_no_diagonal_crossings_rejects_crossing_prefix(self):
+        with pytest.raises(ValueError, match="illegal move in path_prefix"):
+            PathFinder(
+                grid_size=3,
+                path_min_len=4,
+                path_max_len=6,
+                path_max_node_distance=2,
+                no_diagonal_crossings=True,
+                path_prefix=[1, 5, 2, 7],
+            )
+
+    def test_no_perpendicular_crossings_rejects_crossing_prefix(self):
+        with pytest.raises(ValueError, match="illegal move in path_prefix"):
+            PathFinder(
+                grid_size=3,
+                path_min_len=4,
+                path_max_len=6,
+                path_max_node_distance=2,
+                no_perpendicular_crossings=True,
+                path_prefix=[1, 5, 2, 4],
+            )
+
     def test_max_node_distance_limits_long_jumps(self):
         pf = PathFinder(grid_size=3, path_min_len=3, path_max_len=5, path_max_node_distance=1)
 
@@ -146,6 +168,31 @@ class TestPathFinder:
         assert total_paths > 0
         assert pf.total_paths == total_paths
         assert isinstance(total_paths, int)
+
+    def test_calculate_total_paths_matches_known_3x3_total(self):
+        """The optimized counter should preserve the known 3x3 total for 4-9 node paths."""
+        pf = PathFinder(
+            grid_size=3,
+            path_min_len=4,
+            path_max_len=9,
+            path_max_node_distance=2,
+            path_prefix=[],
+            path_suffix=[],
+            excluded_nodes=[],
+        )
+
+        assert pf._calculate_total_paths() == 389112
+
+    def test_calculate_total_paths_with_crossing_constraints_matches_generator(self):
+        pf = PathFinder(
+            grid_size=3,
+            path_min_len=4,
+            path_max_len=5,
+            path_max_node_distance=2,
+            no_diagonal_crossings=True,
+        )
+
+        assert pf._calculate_total_paths() == sum(1 for _ in pf)
 
     def test_calculate_total_paths_no_valid_paths(self):
         """Test _calculate_total_paths raises error when no valid paths exist."""
@@ -329,3 +376,23 @@ class TestPathFinderIntegration:
 
         actual_paths = len(handler.called_paths)
         assert calculated_total == actual_paths
+
+    def test_total_paths_calculation_accuracy_with_suffix_on_larger_grid(self):
+        """Suffix-constrained totals should still match enumerated DFS paths."""
+        pf = PathFinder(
+            grid_size=4,
+            path_min_len=4,
+            path_max_len=6,
+            path_max_node_distance=1,
+            path_prefix=[1, 2],
+            path_suffix=["<", "@"],
+            excluded_nodes=[6],
+        )
+
+        calculated_total = pf._calculate_total_paths()
+
+        handler = MockHandler()
+        pf.add_handler(handler)
+        pf.dfs()
+
+        assert calculated_total == len(handler.called_paths)

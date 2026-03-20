@@ -337,7 +337,7 @@ class TestErrorHandling:
         try:
             mock_config = Config.load_config(config_file)
             database = Mock()
-            database.get_attempted_paths.return_value = set()
+            database.get_terminal_attempt_history.return_value = {}
 
             with pytest.raises(Exception, match="ADB not found"):
                 ADBHandler(

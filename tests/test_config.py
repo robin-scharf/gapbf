@@ -19,6 +19,8 @@ class TestConfig:
             path_min_length=4,
             path_max_length=9,
             path_max_node_distance=1,
+            no_diagonal_crossings=True,
+            no_perpendicular_crossings=True,
             path_prefix=["1", "2"],
             path_suffix=["8", "9"],
             excluded_nodes=["5"],
@@ -34,6 +36,8 @@ class TestConfig:
         assert config.grid_size == 3
         assert config.path_min_length == 4
         assert config.path_max_length == 9
+        assert config.no_diagonal_crossings is True
+        assert config.no_perpendicular_crossings is True
         assert config.attempt_delay == 10.5
         assert config.total_paths == 100
 
@@ -73,6 +77,8 @@ grid_size: 3
 path_min_length: 4
 path_max_length: 9
 path_max_node_distance: 1
+no_diagonal_crossings: true
+no_perpendicular_crossings: false
 path_prefix: [1, 2]
 path_suffix: [8, 9]
 excluded_nodes: [5]
@@ -91,6 +97,8 @@ total_paths: 100
             assert config.grid_size == 3
             assert config.path_min_length == 4
             assert config.path_max_length == 9
+            assert config.no_diagonal_crossings is True
+            assert config.no_perpendicular_crossings is False
             assert config.path_prefix == ["1", "2"]  # Nodes stored as strings
             assert config.path_suffix == ["8", "9"]  # Nodes stored as strings
             assert config.excluded_nodes == ["5"]  # Nodes stored as strings
@@ -135,8 +143,15 @@ grid_size: 4
             assert config.grid_size == 4
             assert config.path_min_length == 4  # Default value
             assert config.path_max_length == 9  # Default from load_config
+            assert config.path_max_node_distance == 3
             assert config.path_prefix == []  # Default value
             assert config.attempt_delay == 0.0  # Default value
+
+    def test_dynamic_default_path_max_node_distance_tracks_grid_size(self):
+        """Missing path_max_node_distance defaults to the grid's theoretical maximum."""
+        config = Config(grid_size=6, path_min_length=4, path_max_length=9)
+
+        assert config.path_max_node_distance == 5
 
     def test_repr_method(self):
         """Test the __repr__ method returns expected format."""

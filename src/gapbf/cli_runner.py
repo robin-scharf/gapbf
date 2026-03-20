@@ -131,6 +131,16 @@ def run_command_impl(
     if session.resume_info is not None and session.resume_info.attempted_count > 0:
         print_resume_summary(session.resume_info)
     print_run_summary(config, mode, total_paths, session.resume_info, session.device_id)
+    if "a" in mode and session.known_successful_attempt is not None:
+        state.mark_success(list(session.known_successful_attempt))
+        state.set_feedback(f"Pattern found: {session.known_successful_attempt}")
+        session.finish("success", session.known_successful_attempt)
+        console.print(f"Success: pattern already known {session.known_successful_attempt}")
+        logger.info(
+            "Skipping live ADB run because a successful pattern is already recorded for %s",
+            session.device_id or "unknown-device",
+        )
+        return
     total_paths_future = None
     if total_paths is None:
         state.mark_total_paths_counting()
