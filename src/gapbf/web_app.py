@@ -12,18 +12,20 @@ from typing import Any
 
 import uvicorn
 from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from .Logging import setup_logging
 from .web_controller import WebRunController
 from .web_models import (
+    CalculateTotalPathsRequest,
     LoadConfigRequest,
     SaveConfigRequest,
     StartRunRequest,
     ValidateConfigRequest,
     config_meta,
 )
+from .web_page import render_index_html
 
 _WEB_SERVER_LOCK = Lock()
 _WEB_SERVER_THREADS: dict[tuple[str, int], Thread] = {}
@@ -37,8 +39,8 @@ def create_app(default_config_path: str = "config.yaml") -> FastAPI:
     app.mount("/assets", StaticFiles(directory=static_dir), name="assets")
 
     @app.get("/")
-    def index() -> FileResponse:
-        return FileResponse(static_dir / "index.html")
+    def index() -> HTMLResponse:
+        return HTMLResponse(render_index_html(str(static_dir)))
 
     @app.get("/api/health")
     def health() -> dict[str, Any]:
@@ -78,6 +80,13 @@ def create_app(default_config_path: str = "config.yaml") -> FastAPI:
         if result["valid"]:
             return result
         raise HTTPException(status_code=400, detail=result["errors"])
+
+    @app.post("/api/config/calculate-total-paths")
+    def calculate_total_paths(request: CalculateTotalPathsRequest) -> dict[str, Any]:
+        try:
+            return controller.calculate_total_paths(request.config)
+        except Exception as error:
+            raise HTTPException(status_code=400, detail=str(error)) from error
 
     @app.get("/api/runs")
     def recent_runs(

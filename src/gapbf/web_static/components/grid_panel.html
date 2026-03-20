@@ -1,0 +1,64 @@
+<section class="panel panel-visualizer">
+  <div class="section-head section-head-inline">
+    <div>
+      <p class="section-label">Grid visualizer</p>
+      <h2>Pattern builder</h2>
+    </div>
+  </div>
+
+  <div class="visualizer-controls-row">
+    <div class="sequence-list sequence-list-inline">
+      <article class="sequence-item sequence-item-selectable sequence-item-prefix is-active" data-tool="prefix"
+        tabindex="0" role="button" aria-pressed="true">
+        <div>
+          <p class="sequence-title">Prefix</p>
+          <p id="prefixDisplay" class="sequence-value">-</p>
+        </div>
+        <button id="clearPrefixButton" class="clear-icon-button" type="button"
+          aria-label="Clear prefix">&times;</button>
+      </article>
+      <article class="sequence-item sequence-item-selectable sequence-item-excluded" data-tool="exclude" tabindex="0"
+        role="button" aria-pressed="false">
+        <div>
+          <p class="sequence-title">Excluded</p>
+          <p id="excludedDisplay" class="sequence-value">-</p>
+        </div>
+        <button id="clearExcludedButton" class="clear-icon-button" type="button"
+          aria-label="Clear excluded">&times;</button>
+      </article>
+      <article class="sequence-item sequence-item-selectable sequence-item-suffix" data-tool="suffix" tabindex="0"
+        role="button" aria-pressed="false">
+        <div>
+          <p class="sequence-title">Suffix</p>
+          <p id="suffixDisplay" class="sequence-value">-</p>
+        </div>
+        <button id="clearSuffixButton" class="clear-icon-button" type="button"
+          aria-label="Clear suffix">&times;</button>
+      </article>
+    </div>
+  </div>
+
+  <div class="visualizer-boards-row">
+    <div class="board-wrap board-wrap-primary">
+      <div class="board-caption-row">
+        <p class="section-label">Pattern builder</p>
+      </div>
+      <div id="patternBoard" class="pattern-board"></div>
+    </div>
+    <div class="board-wrap board-wrap-live">
+      <div class="board-caption-row">
+        <p class="section-label">Live view</p>
+      </div>
+      <div id="liveBoard" class="pattern-board pattern-board-live"></div>
+    </div>
+  </div>
+
+  <div class="legend-row visualizer-legend-row">
+    <span class="legend-chip legend-prefix">Prefix</span>
+    <span class="legend-chip legend-excluded">Excluded</span>
+    <span class="legend-chip legend-suffix">Suffix</span>
+    <span class="legend-chip legend-live">Live</span>
+    <span class="legend-chip legend-disabled">Blocked</span>
+    <span class="legend-note">Faded nodes are outside the current move-distance limit.</span>
+  </div>
+</section>

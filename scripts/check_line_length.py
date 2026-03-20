@@ -3,8 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-WARNING_LIMIT = 200
-ERROR_LIMIT = 250
+LINE_WARNING_LIMIT = 200
+LINE_ERROR_LIMIT = 250
 FILE_WARNING_LIMIT = 200
 FILE_ERROR_LIMIT = 250
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -38,7 +38,7 @@ SKIP_DIR_NAMES = {
 
 
 @dataclass(frozen=True, slots=True)
-class Violation:
+class LineLengthViolation:
     path: Path
     line_number: int
     line_length: int
@@ -68,9 +68,11 @@ def iter_candidate_files(root: Path) -> list[Path]:
     )
 
 
-def collect_violations(paths: list[Path]) -> tuple[list[Violation], list[Violation]]:
-    warnings: list[Violation] = []
-    errors: list[Violation] = []
+def collect_line_length_violations(
+    paths: list[Path],
+) -> tuple[list[LineLengthViolation], list[LineLengthViolation]]:
+    warnings: list[LineLengthViolation] = []
+    errors: list[LineLengthViolation] = []
 
     for path in paths:
         try:
@@ -81,13 +83,23 @@ def collect_violations(paths: list[Path]) -> tuple[list[Violation], list[Violati
         relative_path = path.relative_to(REPO_ROOT)
         for line_number, line in enumerate(lines, start=1):
             line_length = len(line)
-            if line_length > ERROR_LIMIT:
+            if line_length > LINE_ERROR_LIMIT:
                 errors.append(
-                    Violation(relative_path, line_number, line_length, f"> {ERROR_LIMIT}")
+                    LineLengthViolation(
+                        relative_path,
+                        line_number,
+                        line_length,
+                        f"> {LINE_ERROR_LIMIT} chars",
+                    )
                 )
-            elif line_length > WARNING_LIMIT:
+            elif line_length > LINE_WARNING_LIMIT:
                 warnings.append(
-                    Violation(relative_path, line_number, line_length, f"> {WARNING_LIMIT}")
+                    LineLengthViolation(
+                        relative_path,
+                        line_number,
+                        line_length,
+                        f"> {LINE_WARNING_LIMIT} chars",
+                    )
                 )
 
     return warnings, errors
@@ -118,7 +130,7 @@ def collect_file_length_violations(
     return warnings, errors
 
 
-def print_group(title: str, violations: list[Violation]) -> None:
+def print_line_group(title: str, violations: list[LineLengthViolation]) -> None:
     if not violations:
         return
 
@@ -140,16 +152,17 @@ def print_file_group(title: str, violations: list[FileLengthViolation]) -> None:
 
 
 def main() -> int:
-    warnings, errors = collect_violations(iter_candidate_files(REPO_ROOT))
-    file_warnings, file_errors = collect_file_length_violations(iter_candidate_files(REPO_ROOT))
+    paths = iter_candidate_files(REPO_ROOT)
+    line_warnings, line_errors = collect_line_length_violations(paths)
+    file_warnings, file_errors = collect_file_length_violations(paths)
 
-    print_group(
-        f"Line-length warnings ({WARNING_LIMIT + 1}-{ERROR_LIMIT} characters):",
-        warnings,
+    print_line_group(
+        f"Line-wrap warnings ({LINE_WARNING_LIMIT + 1}-{LINE_ERROR_LIMIT} chars):",
+        line_warnings,
     )
-    print_group(
-        f"Line-length failures ({ERROR_LIMIT + 1}+ characters):",
-        errors,
+    print_line_group(
+        f"Line-wrap failures ({LINE_ERROR_LIMIT + 1}+ chars):",
+        line_errors,
     )
     print_file_group(
         f"File-length warnings ({FILE_WARNING_LIMIT + 1}-{FILE_ERROR_LIMIT} lines):",
@@ -160,7 +173,7 @@ def main() -> int:
         file_errors,
     )
 
-    if errors or file_errors:
+    if line_errors or file_errors:
         print(
             "\nCommit blocked: wrap lines to 250 characters or fewer, "
             "and split files to 250 lines or fewer. "
@@ -168,10 +181,10 @@ def main() -> int:
         )
         return 1
 
-    if warnings or file_warnings:
+    if line_warnings or file_warnings:
         print("\nWarnings only: commit allowed.")
     else:
-        print("No line-length issues detected.")
+        print("No line-wrap or file-length issues detected.")
     return 0
 
 

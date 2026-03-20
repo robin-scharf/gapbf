@@ -1,0 +1,131 @@
+<section class="panel panel-settings">
+  <div class="section-head">
+    <div>
+      <p class="section-label">Settings</p>
+      <h2>Search settings</h2>
+    </div>
+    <div class="panel-actions">
+      <button id="copyConfigButton" class="button button-ghost" type="button">Copy config</button>
+    </div>
+  </div>
+
+  <div class="settings-stack">
+    <div class="subsection subsection-first">
+      <p class="section-label">Length + timing</p>
+      <div class="form-grid form-grid-settings">
+        <label>
+          <span class="field-label-row">Grid size
+            <span class="info-tooltip" tabindex="0" aria-label="Grid size info">
+              <span class="info-tooltip-trigger">i</span>
+              <span class="info-tooltip-bubble">Choose the Android pattern grid size. This updates the available nodes
+                and valid path limits.</span>
+            </span>
+          </span>
+          <select id="gridSize"></select>
+        </label>
+        <label>
+          <span class="field-label-row">Minimum length
+            <span class="info-tooltip" tabindex="0" aria-label="Minimum length info">
+              <span class="info-tooltip-trigger">i</span>
+              <span class="info-tooltip-bubble">Set the shortest pattern length GAPBF is allowed to try. Android pattern
+                lock requires at least 4 nodes on every supported grid size.</span>
+            </span>
+          </span>
+          <div class="range-row">
+            <input id="pathMinLength" type="range" min="4" max="9" value="4" />
+            <input id="pathMinLengthNumber" type="number" min="4" max="9" value="4" />
+          </div>
+        </label>
+        <label>
+          <span class="field-label-row">Maximum length
+            <span class="info-tooltip" tabindex="0" aria-label="Maximum length info">
+              <span class="info-tooltip-trigger">i</span>
+              <span class="info-tooltip-bubble">Set the longest pattern length GAPBF will generate for the current
+                grid.</span>
+            </span>
+          </span>
+          <div class="range-row">
+            <input id="pathMaxLength" type="range" min="4" max="9" value="9" />
+            <input id="pathMaxLengthNumber" type="number" min="4" max="9" value="9" />
+          </div>
+        </label>
+        <label>
+          <span class="field-label-row">Move distance limit
+            <span class="info-tooltip" tabindex="0" aria-label="Move distance limit info">
+              <span class="info-tooltip-trigger">i</span>
+              <span class="info-tooltip-bubble">User-defined cap for how far a move may travel between consecutive
+                nodes. Lower values prune long jumps and reduce the search space.</span>
+            </span>
+          </span>
+          <input id="pathMaxNodeDistance" type="number" step="1" min="1" value="1" />
+          <small class="field-note" id="distanceNote"></small>
+        </label>
+        <label>
+          <span class="field-label-row">Attempt delay
+            <span class="info-tooltip" tabindex="0" aria-label="Attempt delay info">
+              <span class="info-tooltip-trigger">i</span>
+              <span class="info-tooltip-bubble">Wait time between attempts sent to the device. Increase this if recovery
+                needs more time to respond.</span>
+            </span>
+          </span>
+          <input id="attemptDelay" type="number" step="0.1" min="0" value="10.1" />
+        </label>
+        <label>
+          <span class="field-label-row">ADB timeout
+            <span class="info-tooltip" tabindex="0" aria-label="ADB timeout info">
+              <span class="info-tooltip-trigger">i</span>
+              <span class="info-tooltip-bubble">Maximum time to wait for a single ADB command before GAPBF marks it as
+                timed out.</span>
+            </span>
+          </span>
+          <input id="adbTimeout" type="number" step="1" min="1" value="30" />
+        </label>
+      </div>
+    </div>
+
+    <div class="subsection">
+      <p class="section-label">Checkboxes</p>
+      <p class="section-label checkbox-subtitle">Mode</p>
+      <div class="checkbox-cluster">
+        <label class="toggle-pill toggle-pill-wide"><input id="modeA" type="checkbox" checked />ADB</label>
+        <label class="toggle-pill toggle-pill-wide"><input id="modeT" type="checkbox" />Test</label>
+        <label class="toggle-pill toggle-pill-wide"><input id="modeP" type="checkbox" />Print</label>
+        <label class="toggle-pill toggle-pill-wide"><input id="echoCommands" type="checkbox" checked />Echo
+          pattern</label>
+        <label class="toggle-pill toggle-pill-wide"><input id="noDiagonalCrossings" type="checkbox" />No diagonal
+          crossings</label>
+        <label class="toggle-pill toggle-pill-wide"><input id="noPerpendicularCrossings" type="checkbox" />No
+          perpendicular crossings</label>
+      </div>
+    </div>
+
+    <div class="subsection">
+      <p class="section-label">Text inputs</p>
+      <div class="form-grid form-grid-text">
+        <label class="config-path-field">
+          <span>Config file</span>
+          <div class="config-path-row">
+            <input id="configPath" type="text" value="config.yaml" />
+            <button id="loadConfigButton" class="button button-ghost">Load</button>
+            <button id="saveConfigButton" class="button button-ghost">Save</button>
+          </div>
+        </label>
+        <label><span>stdout success</span><input id="stdoutSuccess" type="text" /></label>
+        <label><span>stdout normal</span><input id="stdoutNormal" type="text" /></label>
+        <label><span>stdout error</span><input id="stdoutError" type="text" /></label>
+        <label><span>Database path</span><input id="dbPath" type="text" /></label>
+        <label><span>Test path</span><input id="testPath" type="text" placeholder="1234" /></label>
+        <label>
+          <span class="field-label-row">Total paths override
+            <span class="info-tooltip" tabindex="0" aria-label="Total paths override info">
+              <span class="info-tooltip-trigger">i</span>
+              <span class="info-tooltip-bubble">Optional exact total. Leave 0 to let GAPBF calculate it in the
+                background.</span>
+            </span>
+          </span>
+          <input id="totalPaths" type="number" min="0" value="0" />
+        </label>
+      </div>
+    </div>
+  </div>
+</section>

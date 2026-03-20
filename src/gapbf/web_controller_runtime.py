@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 import queue
+import time
 from typing import Any
 
 from .Database import utc_now_iso
@@ -10,6 +11,8 @@ from .runtime import RunSession, UserRequestedStop, execute_path_search
 from .web_models import serialize_attempt_row
 
 logger = logging.getLogger("gapbf.web")
+TOTAL_PATHS_TIMEOUT_SECONDS = 30.0
+TOTAL_PATHS_PROGRESS_INTERVAL_SECONDS = 0.5
 ATTEMPT_EVENTS = {
     "adb_skip",
     "adb_timeout",
@@ -45,6 +48,37 @@ class WebRunControllerRuntimeMixin:
                 self._subscribers = [item for item in self._subscribers if item not in stale]
 
     def _watch_total_paths(self, total_future: Any) -> None:
+        started_at = time.monotonic()
+        last_published_elapsed = -1
+
+        while not total_future.done():
+            elapsed_seconds = int(time.monotonic() - started_at)
+            if elapsed_seconds != last_published_elapsed:
+                with self._lock:
+                    self._state["total_paths_elapsed_seconds"] = elapsed_seconds
+                    if self._state["total_paths_state"] == "counting":
+                        self._state["last_feedback"] = (
+                            "Counting exact total paths "
+                            f"({elapsed_seconds}s / {int(TOTAL_PATHS_TIMEOUT_SECONDS)}s budget)"
+                        )
+                self._publish("snapshot", self.snapshot())
+                last_published_elapsed = elapsed_seconds
+
+            if time.monotonic() - started_at >= TOTAL_PATHS_TIMEOUT_SECONDS:
+                with self._lock:
+                    self._state["total_paths"] = None
+                    self._state["total_paths_state"] = "timeout"
+                    self._state["total_paths_elapsed_seconds"] = int(
+                        TOTAL_PATHS_TIMEOUT_SECONDS
+                    )
+                    self._state["last_feedback"] = (
+                        "Exact total path count timed out. Falling back to unknown total."
+                    )
+                self._publish("snapshot", self.snapshot())
+                return
+
+            time.sleep(TOTAL_PATHS_PROGRESS_INTERVAL_SECONDS)
+
         try:
             total_paths = total_future.result()
         except Exception as error:
@@ -56,7 +90,10 @@ class WebRunControllerRuntimeMixin:
         with self._lock:
             self._state["total_paths"] = total_paths
             self._state["total_paths_state"] = "ready"
-            if self._state["last_feedback"] == "Preparing run":
+            self._state["total_paths_elapsed_seconds"] = int(time.monotonic() - started_at)
+            if self._state["last_feedback"] == "Preparing run" or self._state[
+                "last_feedback"
+            ].startswith("Counting exact total paths"):
                 self._state["last_feedback"] = "Exact total path count is ready"
         self._publish("snapshot", self.snapshot())
 

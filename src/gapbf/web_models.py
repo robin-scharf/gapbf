@@ -24,6 +24,10 @@ class ValidateConfigRequest(BaseModel):
     config: dict[str, Any]
 
 
+class CalculateTotalPathsRequest(BaseModel):
+    config: dict[str, Any]
+
+
 class StartRunRequest(BaseModel):
     mode: str = Field(default="a", min_length=1)
     config: dict[str, Any]
@@ -79,6 +83,7 @@ def serialize_run_row(row: Any) -> dict[str, Any]:
 
 def config_meta(grid_size: int) -> dict[str, Any]:
     nodes = valid_nodes_for_grid(grid_size)
+    default_path_max_node_distance = max(1, grid_size - 1)
     return {
         "grid_size": grid_size,
         "nodes": nodes,
@@ -87,6 +92,16 @@ def config_meta(grid_size: int) -> dict[str, Any]:
         "default_path_min_length": 4,
         "max_path_length": len(nodes),
         "default_path_max_length": len(nodes),
+        "min_path_max_node_distance": 1,
+        "max_path_max_node_distance": default_path_max_node_distance,
+        "default_path_max_node_distance": default_path_max_node_distance,
+        "default_no_diagonal_crossings": False,
+        "default_no_perpendicular_crossings": False,
+        "path_max_node_distance_note": (
+            "User-defined move distance limit. "
+            "Set it lower to prune long jumps, or keep it at the grid maximum "
+            "to allow the full theoretical move range for that grid."
+        ),
         "default_attempt_delay": 10.1,
         "default_adb_timeout": 30,
     }
@@ -103,7 +118,9 @@ def config_from_payload(config_data: dict[str, Any]) -> Config:
     normalized.setdefault("grid_size", 3)
     normalized.setdefault("path_min_length", 4)
     normalized.setdefault("path_max_length", normalized["grid_size"] ** 2)
-    normalized.setdefault("path_max_node_distance", 1)
+    normalized.setdefault("path_max_node_distance", max(1, normalized["grid_size"] - 1))
+    normalized.setdefault("no_diagonal_crossings", False)
+    normalized.setdefault("no_perpendicular_crossings", False)
     normalized.setdefault("path_prefix", [])
     normalized.setdefault("path_suffix", [])
     normalized.setdefault("excluded_nodes", [])
