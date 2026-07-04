@@ -64,6 +64,8 @@ class Config(BaseModel):
     stdout_error: str = ""
     db_path: str = "~/.gapbf/gapbf.db"
     adb_timeout: int = Field(default=30, ge=1)
+    retry_max: int = Field(default=3, ge=0)
+    retry_base_delay: float = Field(default=2.0, ge=0)
     total_paths: int = Field(default=0, ge=0)
     echo_commands: bool = True
 
@@ -173,46 +175,22 @@ class Config(BaseModel):
 
     @classmethod
     def load_config(cls, config_file_path: str) -> "Config":
-        """Load configuration from YAML file."""
+        """Load configuration from YAML file.
+
+        Field defaults, node-list normalization, and dynamic defaults all live
+        on the model (see the validators above), so this only reads the file and
+        hands the raw mapping to the model. ``extra="forbid"`` rejects unknown
+        keys and the validators normalize/validate every field.
+        """
         try:
-            with open(config_file_path, "r") as file_obj:
+            with open(config_file_path) as file_obj:
                 config_data = yaml.safe_load(file_obj) or {}
         except FileNotFoundError:
             raise ValueError(f"Configuration file not found: {config_file_path}")
         except yaml.YAMLError as error:
             raise ValueError(f"Invalid YAML in {config_file_path}: {error}")
 
-        def to_string_list(values: Any) -> list[str]:
-            return [str(item) for item in values] if values else []
-
-        config_dict = {
-            "config_file_path": config_file_path,
-            "grid_size": config_data.get("grid_size", 3),
-            "path_min_length": config_data.get("path_min_length", 4),
-            "path_max_length": config_data.get("path_max_length", 9),
-            "path_max_node_distance": config_data.get(
-                "path_max_node_distance",
-                max(1, int(config_data.get("grid_size", 3)) - 1),
-            ),
-            "no_diagonal_crossings": config_data.get("no_diagonal_crossings", False),
-            "no_perpendicular_crossings": config_data.get(
-                "no_perpendicular_crossings", False
-            ),
-            "path_prefix": to_string_list(config_data.get("path_prefix", [])),
-            "path_suffix": to_string_list(config_data.get("path_suffix", [])),
-            "excluded_nodes": to_string_list(config_data.get("excluded_nodes", [])),
-            "attempt_delay": config_data.get("attempt_delay", 0.0),
-            "test_path": to_string_list(config_data.get("test_path", [])),
-            "stdout_normal": config_data.get("stdout_normal", ""),
-            "stdout_success": config_data.get("stdout_success", ""),
-            "stdout_error": config_data.get("stdout_error", ""),
-            "db_path": config_data.get("db_path", "~/.gapbf/gapbf.db"),
-            "adb_timeout": config_data.get("adb_timeout", 30),
-            "total_paths": config_data.get("total_paths", 0),
-            "echo_commands": config_data.get("echo_commands", True),
-        }
-
-        return cls(**config_dict)
+        return cls(config_file_path=config_file_path, **config_data)
 
     def __repr__(self) -> str:
         """String representation of Config."""

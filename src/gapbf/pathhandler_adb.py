@@ -11,6 +11,11 @@ from .pathhandler_common import (
     _marker_matches,
 )
 
+# Non-normal results worth retrying in place with exponential backoff:
+# transient device/transport hiccups, not real decrypt failures.
+RETRYABLE_CLASSIFICATIONS = {"timeout", "unknown_response", "transport_error"}
+_MAX_BACKOFF_SECONDS = 300.0
+
 
 class ADBHandler(PathHandler):
     def __init__(
@@ -21,8 +26,6 @@ class ADBHandler(PathHandler):
         device_id: str,
         output: Output,
     ):
-        from . import PathHandler as pathhandler_module
-
         super().__init__(config, output)
         self.database = database
         self.run_id = run_id
@@ -31,20 +34,19 @@ class ADBHandler(PathHandler):
             config,
             device_id,
         )
-        self.current_path_number = len(self.terminal_attempt_history)
+        self.resume_attempt_count = len(self.terminal_attempt_history)
+        self.current_path_number = 0
 
-        if self.current_path_number > 0:
+        if self.resume_attempt_count > 0:
             self.logger.info(
                 "Resuming from previous session: "
-                f"{self.current_path_number} paths already attempted"
+                f"{self.resume_attempt_count} paths already attempted"
             )
 
         try:
-            pathhandler_module.subprocess.run(
-                ["adb", "start-server"], check=True, capture_output=True
-            )
+            subprocess.run(["adb", "start-server"], check=True, capture_output=True)
             self.logger.info("ADB server started successfully")
-        except pathhandler_module.subprocess.CalledProcessError as error:
+        except subprocess.CalledProcessError as error:
             self.logger.error(f"Failed to start ADB server: {error}")
             raise
         except FileNotFoundError:
@@ -54,8 +56,6 @@ class ADBHandler(PathHandler):
     def handle_path(
         self, path: list[str], total_paths: int | None = None
     ) -> tuple[bool, list[str] | None]:
-        from . import PathHandler as pathhandler_module
-
         self.current_path_number += 1
         attempt_key = "".join(path)
         attempt_hash = self.database.attempt_hash_for(
@@ -90,57 +90,24 @@ class ADBHandler(PathHandler):
         else:
             command = ["adb", "shell", "twrp", "decrypt", formatted_path]
 
-        started_at = time.perf_counter()
-        try:
-            result = pathhandler_module.subprocess.run(
-                command,
-                capture_output=True,
-                text=True,
-                timeout=self.config.adb_timeout,
-            )
-        except pathhandler_module.subprocess.TimeoutExpired:
-            self.database.log_attempt(
-                self.run_id,
-                attempt_key,
-                f"Timeout after {self.config.adb_timeout}s",
-                "timeout",
-                -1,
-                (time.perf_counter() - started_at) * 1000,
-                stdout="",
-                stderr="",
-            )
-            self.logger.error(
-                f"ADB command timed out after {self.config.adb_timeout}s for path: {path}"
-            )
-            self.output.show_adb_timeout(self.current_path_number, total_paths)
-            return False, None
-        except Exception as error:
-            self.database.log_attempt(
-                self.run_id,
-                attempt_key,
-                f"Execution error: {error}",
-                "transport_error",
-                -2,
-                (time.perf_counter() - started_at) * 1000,
-                stdout="",
-                stderr=str(error),
-            )
-            self.logger.error(f"Failed to execute ADB command: {error}")
-            self.output.show_adb_error(self.current_path_number, total_paths, str(error))
-            return False, None
+        # Retry non-normal results (timeout / transport / unknown) with
+        # exponential backoff; real decrypt outcomes break out immediately.
+        for retry in range(self.config.retry_max + 1):
+            classified_result = self._execute_and_log(command, attempt_key)
+            if classified_result.classification not in RETRYABLE_CLASSIFICATIONS:
+                break
+            if retry < self.config.retry_max:
+                delay = min(
+                    self.config.retry_base_delay * (2**retry), _MAX_BACKOFF_SECONDS
+                )
+                self.logger.warning(
+                    "Non-normal result %r for path %s; backoff %.1fs then retry %d/%d",
+                    classified_result.classification, path, delay,
+                    retry + 1, self.config.retry_max,
+                )
+                if delay > 0:
+                    time.sleep(delay)
 
-        classified_result = self._classify_result(result)
-        duration_ms = (time.perf_counter() - started_at) * 1000
-        self.database.log_attempt(
-            self.run_id,
-            attempt_key,
-            classified_result.response,
-            classified_result.classification,
-            classified_result.returncode,
-            duration_ms,
-            stdout=classified_result.stdout,
-            stderr=classified_result.stderr,
-        )
         if classified_result.classification in {"normal_failure", "success"}:
             terminal_entry = self.database.get_terminal_attempt_entry(
                 self.config,
@@ -149,6 +116,15 @@ class ADBHandler(PathHandler):
             )
             if terminal_entry is not None:
                 self.terminal_attempt_history[attempt_hash] = terminal_entry
+
+        if classified_result.classification == "timeout":
+            self.output.show_adb_timeout(self.current_path_number, total_paths)
+            return False, None
+        if classified_result.classification == "transport_error":
+            self.output.show_adb_error(
+                self.current_path_number, total_paths, classified_result.stderr
+            )
+            return False, None
 
         if classified_result.classification == "success":
             self.output.show_adb_success(path)
@@ -174,10 +150,62 @@ class ADBHandler(PathHandler):
 
         self.logger.error(
             "Unexpected ADB response: "
-            f"returncode={result.returncode}, stdout={result.stdout!r}, stderr={result.stderr!r}"
+            f"returncode={classified_result.returncode}, "
+            f"stdout={classified_result.stdout!r}, stderr={classified_result.stderr!r}"
         )
         self.output.show_adb_unexpected(self.current_path_number, total_paths)
         return False, None
+
+    def _execute_and_log(
+        self, command: list[str], attempt_key: str
+    ) -> ADBResponseClassification:
+        """Run one adb attempt, log it, return the classified result.
+
+        Timeouts and transport errors are surfaced as their own
+        classifications so the caller's retry loop can act on them.
+        """
+        started_at = time.perf_counter()
+        try:
+            result = subprocess.run(
+                command,
+                capture_output=True,
+                text=True,
+                timeout=self.config.adb_timeout,
+            )
+        except subprocess.TimeoutExpired:
+            self.logger.error(
+                f"ADB command timed out after {self.config.adb_timeout}s: {attempt_key}"
+            )
+            classified = ADBResponseClassification(
+                classification="timeout",
+                response=f"Timeout after {self.config.adb_timeout}s",
+                stdout="",
+                stderr="",
+                returncode=-1,
+            )
+        except Exception as error:
+            self.logger.error(f"Failed to execute ADB command: {error}")
+            classified = ADBResponseClassification(
+                classification="transport_error",
+                response=f"Execution error: {error}",
+                stdout="",
+                stderr=str(error),
+                returncode=-2,
+            )
+        else:
+            classified = self._classify_result(result)
+
+        self.database.log_attempt(
+            self.run_id,
+            attempt_key,
+            classified.response,
+            classified.classification,
+            classified.returncode,
+            (time.perf_counter() - started_at) * 1000,
+            stdout=classified.stdout,
+            stderr=classified.stderr,
+        )
+        return classified
 
     def _classify_result(
         self, result: subprocess.CompletedProcess[str]
