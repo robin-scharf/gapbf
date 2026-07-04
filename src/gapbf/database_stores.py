@@ -227,6 +227,23 @@ class DatabaseStoreMixin:
             for row in rows
         }
 
+    def get_inconclusive_attempts(self, config: Config, device_id: str) -> list[str]:
+        """Attempts with no terminal outcome (timeout / unknown / error) for
+        this device+grid -- i.e. patterns that produced no valid result and
+        are worth retrying first on restart."""
+        with self._lock:
+            rows = self.connection.execute(
+                """
+                SELECT attempt
+                FROM attempts
+                WHERE device_id = ? AND grid_size = ?
+                    AND result_classification NOT IN (?, ?)
+                ORDER BY id
+                """,
+                (device_id, config.grid_size, *sorted(TERMINAL_ATTEMPT_CLASSIFICATIONS)),
+            ).fetchall()
+        return [row["attempt"] for row in rows]
+
     def get_terminal_attempt_entry(
         self, config: Config, device_id: str, attempt: str
     ) -> AttemptHistoryEntry | None:

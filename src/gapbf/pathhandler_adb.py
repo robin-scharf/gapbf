@@ -53,6 +53,17 @@ class ADBHandler(PathHandler):
             self.logger.error("ADB command not found. Please install Android platform-tools")
             raise
 
+    def inconclusive_paths(self) -> list[list[str]]:
+        """Previously-attempted patterns with no terminal result, retried
+        first on restart. Nodes are single chars, so split the stored
+        attempt string back into a path."""
+        return [
+            list(attempt)
+            for attempt in self.database.get_inconclusive_attempts(
+                self.config, self.device_id
+            )
+        ]
+
     def handle_path(
         self, path: list[str], total_paths: int | None = None
     ) -> tuple[bool, list[str] | None]:

@@ -1,6 +1,6 @@
 import pytest
 
-from gapbf.PathFinder import PathFinder, calculate_total_paths_async
+from gapbf.PathFinder import PathFinder
 from gapbf.PathHandler import PathHandler
 
 
@@ -98,7 +98,7 @@ class TestPathFinder:
     def test_calculate_total_paths_async_returns_future(self):
         pf = PathFinder(grid_size=3, path_min_len=4, path_max_len=4)
 
-        future = calculate_total_paths_async(pf)
+        future = pf.calculate_total_paths_async()
 
         assert future.result(timeout=5) > 0
 
@@ -396,3 +396,59 @@ class TestPathFinderIntegration:
         pf.dfs()
 
         assert calculated_total == len(handler.called_paths)
+
+
+class _RetryFinder:
+    """Minimal PathFinder stand-in recording process order."""
+
+    def __init__(self, fresh, handlers):
+        self._fresh = fresh
+        self.handlers = handlers
+        self.processed: list[list[str]] = []
+
+    def __iter__(self):
+        return iter(self._fresh)
+
+    def process_path(self, path, total_paths=None):
+        self.processed.append(list(path))
+        return False, None
+
+
+class _InconclusiveHandler:
+    def __init__(self, paths):
+        self._paths = paths
+
+    def inconclusive_paths(self):
+        return self._paths
+
+
+class TestExecutePathSearchRetryFirst:
+    def _run(self, finder):
+        from gapbf.runtime_session import execute_path_search
+
+        return execute_path_search(
+            finder,
+            should_stop=lambda: False,
+            is_paused=lambda: False,
+            total_paths_provider=lambda: None,
+            on_path_selected=lambda path: None,
+            on_attempt_completed=lambda path, success, result: None,
+        )
+
+    def test_inconclusive_patterns_run_before_fresh_sweep(self):
+        handler = _InconclusiveHandler([["1", "2", "3", "4"]])
+        finder = _RetryFinder(fresh=[["5", "6", "7", "8"]], handlers=[handler])
+
+        success, _ = self._run(finder)
+
+        assert success is False
+        # inconclusive path retried first, then the fresh generated path
+        assert finder.processed == [["1", "2", "3", "4"], ["5", "6", "7", "8"]]
+
+    def test_no_inconclusive_handler_is_a_noop(self):
+        finder = _RetryFinder(fresh=[["5", "6", "7", "8"]], handlers=[MockHandler()])
+
+        success, _ = self._run(finder)
+
+        assert success is False
+        assert finder.processed == [["5", "6", "7", "8"]]
