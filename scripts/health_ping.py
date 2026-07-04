@@ -4,11 +4,12 @@
 Reads progress straight from the sqlite DB and posts a summary.
 Stdlib only (sqlite3 + urllib) so it runs on the bare server python3.
 
-Env (source ~/.gapbf/telegram.env before running):
-  TELEGRAM_BOT_TOKEN   required  -- injected once via infisical CLI
-  TELEGRAM_CHAT_ID     required  -- destination chat
-  GAPBF_DB             optional  -- default ~/.gapbf/gapbf.db
-  GAPBF_STALE_MIN      optional  -- liveness threshold, default 60 (minutes)
+Env (injected live by `infisical run` via run_healthcheck.sh):
+  TELEGRAM_RS_AUTOMATION_BOT_TOKEN   required  -- bot token from infisical
+  TELEGRAM_RS_AUTOMATION_CHAT_ID     required  -- destination chat id
+  GAPBF_DB                           optional  -- default ~/.gapbf/gapbf.db
+  GAPBF_STALE_MIN                    optional  -- liveness threshold, default 60 min
+(TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID accepted as fallbacks.)
 """
 import json
 import os
@@ -19,8 +20,10 @@ from datetime import datetime, timezone
 
 DB = os.path.expanduser(os.environ.get("GAPBF_DB", "~/.gapbf/gapbf.db"))
 STALE_MIN = int(os.environ.get("GAPBF_STALE_MIN", "60"))
-TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
-CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
+TOKEN = (os.environ.get("TELEGRAM_RS_AUTOMATION_BOT_TOKEN")
+         or os.environ.get("TELEGRAM_BOT_TOKEN", ""))
+CHAT_ID = (os.environ.get("TELEGRAM_RS_AUTOMATION_CHAT_ID")
+           or os.environ.get("TELEGRAM_CHAT_ID", ""))
 
 
 def _parse(ts):
@@ -96,8 +99,8 @@ def build_message(d):
 
 def send(text):
     if not TOKEN or not CHAT_ID:
-        sys.exit("TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID not set "
-                 "(source ~/.gapbf/telegram.env)")
+        sys.exit("bot token / chat id not set -- expected TELEGRAM_RS_AUTOMATION_* "
+                 "injected by `infisical run` (see run_healthcheck.sh)")
     data = json.dumps({"chat_id": CHAT_ID, "text": text}).encode()
     req = urllib.request.Request(
         f"https://api.telegram.org/bot{TOKEN}/sendMessage",
