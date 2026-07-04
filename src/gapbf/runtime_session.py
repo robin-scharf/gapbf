@@ -205,7 +205,7 @@ def execute_path_search(
     on_attempt_completed: Callable[[list[str], bool, list[str] | None], None],
     pause_poll_interval: float = 0.05,
 ) -> tuple[bool, list[str]]:
-    for path in path_finder:
+    def run_one(path: list[str]) -> tuple[bool, list[str] | None]:
         while True:
             if should_stop():
                 raise UserRequestedStop()
@@ -216,8 +216,36 @@ def execute_path_search(
         on_path_selected(path)
         success, result_path = path_finder.process_path(path, total_paths_provider())
         on_attempt_completed(path, success, result_path)
+        return success, result_path
 
+    # Retry previously inconclusive patterns first: on restart, re-test the
+    # ones that produced no valid result (device flakiness / timeouts) before
+    # grinding the full space again.
+    for path in _gather_retry_first_paths(path_finder):
+        success, result_path = run_one(path)
+        if success:
+            return True, result_path or path
+
+    for path in path_finder:
+        success, result_path = run_one(path)
         if success:
             return True, result_path or path
 
     return False, []
+
+
+def _gather_retry_first_paths(path_finder: PathFinder) -> list[list[str]]:
+    """Collect inconclusive patterns from any handler that tracks them
+    (currently the ADB handler), de-duplicated, preserving order."""
+    seen: set[tuple[str, ...]] = set()
+    paths: list[list[str]] = []
+    for handler in path_finder.handlers:
+        getter = getattr(handler, "inconclusive_paths", None)
+        if getter is None:
+            continue
+        for path in getter():
+            key = tuple(path)
+            if key not in seen:
+                seen.add(key)
+                paths.append(path)
+    return paths

@@ -64,6 +64,8 @@ class Config(BaseModel):
     stdout_error: str = ""
     db_path: str = "~/.gapbf/gapbf.db"
     adb_timeout: int = Field(default=30, ge=1)
+    retry_max: int = Field(default=3, ge=0)
+    retry_base_delay: float = Field(default=2.0, ge=0)
     total_paths: int = Field(default=0, ge=0)
     echo_commands: bool = True
 
@@ -208,6 +210,8 @@ class Config(BaseModel):
             "stdout_error": config_data.get("stdout_error", ""),
             "db_path": config_data.get("db_path", "~/.gapbf/gapbf.db"),
             "adb_timeout": config_data.get("adb_timeout", 30),
+            "retry_max": config_data.get("retry_max", 3),
+            "retry_base_delay": config_data.get("retry_base_delay", 2.0),
             "total_paths": config_data.get("total_paths", 0),
             "echo_commands": config_data.get("echo_commands", True),
         }

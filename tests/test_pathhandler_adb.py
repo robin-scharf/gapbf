@@ -145,6 +145,7 @@ class TestADBHandler:
             stdout_success="Success",
             stdout_error="Error",
             adb_timeout=30,
+            retry_max=0,
         )
         database = mocker.Mock()
         database.get_terminal_attempt_history.return_value = {}
@@ -165,6 +166,49 @@ class TestADBHandler:
         assert path is None
         database.log_attempt.assert_called_once()
         reporter.show_adb_timeout.assert_called_once()
+
+    def test_handle_path_retries_timeout_then_succeeds(self, mocker):
+        config = Config(
+            grid_size=3,
+            path_min_length=4,
+            path_max_length=9,
+            stdout_normal="Failed",
+            stdout_success="Success",
+            stdout_error="Error",
+            adb_timeout=30,
+            retry_max=3,
+            retry_base_delay=2.0,
+        )
+        database = mocker.Mock()
+        database.get_terminal_attempt_history.return_value = {}
+        database.attempt_hash_for.return_value = "new-hash"
+        database.get_terminal_attempt_entry.return_value = AttemptHistoryEntry(
+            "123", "new-hash", "success"
+        )
+        start_result = mocker.Mock(returncode=0, stdout="", stderr="")
+        decrypt_ok = mocker.Mock(returncode=0, stdout="Success", stderr="")
+        # two timeouts, then a real success -> proves in-place retry
+        mocker.patch(
+            "gapbf.PathHandler.subprocess.run",
+            side_effect=[
+                start_result,
+                subprocess.TimeoutExpired(cmd="adb", timeout=30),
+                subprocess.TimeoutExpired(cmd="adb", timeout=30),
+                decrypt_ok,
+            ],
+        )
+        sleep = mocker.patch("gapbf.pathhandler_adb.time.sleep")
+        reporter = mocker.Mock()
+
+        handler = ADBHandler(
+            config, database=database, run_id="run-1", device_id="SERIAL123", output=reporter
+        )
+        success, path = handler.handle_path(["1", "2", "3"], total_paths=100)
+
+        assert success is True
+        assert path == ["1", "2", "3"]
+        assert database.log_attempt.call_count == 3
+        assert [c.args[0] for c in sleep.call_args_list] == [2.0, 4.0]
 
     def test_handle_path_uses_configured_error_marker(self, mocker):
         config = Config(
