@@ -106,8 +106,12 @@ def send(text):
         f"https://api.telegram.org/bot{TOKEN}/sendMessage",
         data=data, headers={"Content-Type": "application/json"},
     )
-    with urllib.request.urlopen(req, timeout=30) as r:
-        body = json.load(r)
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
+            body = json.load(r)
+    except urllib.error.HTTPError as e:
+        detail = e.read().decode(errors="replace")
+        sys.exit(f"telegram HTTP {e.code}: {detail}")
     if not body.get("ok"):
         sys.exit(f"telegram error: {body}")
 
