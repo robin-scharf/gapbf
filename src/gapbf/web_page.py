@@ -5,6 +5,7 @@ from pathlib import Path
 
 _PLACEHOLDER_NAMES = (
     "settings_panel",
+    "shape_panel",
     "grid_panel",
     "log_panel",
     "controls_panel",

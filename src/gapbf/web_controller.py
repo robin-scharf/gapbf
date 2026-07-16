@@ -85,6 +85,32 @@ class WebRunController(
         self._publish("snapshot", self.snapshot())
         return self.snapshot()
 
+    def preview_shapes(self, config_data: dict[str, Any]) -> dict[str, Any]:
+        from .shapes.library import BY_NAME, LIBRARY
+        from .shapes.source import ShapeCandidateSource
+
+        config = config_from_payload(config_data)
+        source = ShapeCandidateSource(config)
+        shapes = (
+            [BY_NAME[n] for n in config.shape_names if n in BY_NAME]
+            if config.shape_names
+            else None
+        )
+        candidates = source.candidates(
+            shapes=shapes,
+            drawn=[list(d) for d in config.drawn_shapes],
+            wildness=config.shape_wildness,
+        )
+        king = sum(1 for c in candidates if source._max_move_distance(c) == 1)
+        return {
+            "count": len(candidates),
+            "king_count": king,
+            "eta_seconds": round(len(candidates) * config.attempt_delay),
+            "wildness": config.shape_wildness,
+            "sample": ["".join(c) for c in candidates[:15]],
+            "library": [{"name": s.name, "tags": list(s.tags)} for s in LIBRARY],
+        }
+
     def start(self, config_data: dict[str, Any], mode: str) -> dict[str, Any]:
         validated_mode = validate_mode(mode)
         config = config_from_payload(config_data)

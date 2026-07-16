@@ -20,6 +20,7 @@ import {
   updateSnapshot,
 } from './notifications.js'
 import { applyGridConfig, renderAll, syncLengthControls } from './render.js'
+import { initShapePanel, refreshShapePanel } from './shapes.js'
 import {
   fetchInitialState,
   startStatePolling,
@@ -165,6 +166,7 @@ function bindInputs() {
       },
     )
     renderAll()
+    refreshShapePanel()
   })
 
   elements.startButton.addEventListener('click', async () => {
@@ -243,6 +245,7 @@ export async function init() {
   bindTooltips()
   bindInputs()
   await fetchInitialState()
+  initShapePanel()
   subscribeEvents()
   startStatePolling()
 }

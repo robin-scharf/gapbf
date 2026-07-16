@@ -21,6 +21,7 @@ from .web_models import (
     CalculateTotalPathsRequest,
     LoadConfigRequest,
     SaveConfigRequest,
+    ShapePreviewRequest,
     StartRunRequest,
     ValidateConfigRequest,
     config_meta,
@@ -85,6 +86,13 @@ def create_app(default_config_path: str = "config.yaml") -> FastAPI:
     def calculate_total_paths(request: CalculateTotalPathsRequest) -> dict[str, Any]:
         try:
             return controller.calculate_total_paths(request.config)
+        except Exception as error:
+            raise HTTPException(status_code=400, detail=str(error)) from error
+
+    @app.post("/api/shapes/preview")
+    def shapes_preview(request: ShapePreviewRequest) -> dict[str, Any]:
+        try:
+            return controller.preview_shapes(request.config)
         except Exception as error:
             raise HTTPException(status_code=400, detail=str(error)) from error
 

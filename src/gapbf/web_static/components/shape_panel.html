@@ -1,0 +1,125 @@
+<section class="panel panel-shape shape-panel">
+  <style>
+    .shape-panel .shape-grid {
+      display: grid;
+      gap: 10px;
+      padding: 14px;
+      background: rgba(0, 0, 0, 0.03);
+      border-radius: 12px;
+      width: fit-content;
+      touch-action: none;
+      user-select: none;
+    }
+    .shape-panel .shape-dot {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      border: 2px solid rgba(0, 0, 0, 0.25);
+      background: #fff;
+      color: rgba(0, 0, 0, 0.55);
+      font-size: 11px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+    }
+    .shape-panel .shape-dot.is-on {
+      border-color: #059669;
+      background: rgba(5, 150, 105, 0.18);
+      color: #065f46;
+    }
+    .shape-panel .shape-dot.is-start {
+      border-color: #d97706;
+      background: rgba(217, 119, 6, 0.22);
+      color: #7c2d12;
+    }
+    .shape-panel .shape-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-top: 10px;
+    }
+    .shape-panel .shape-seq {
+      font-family: ui-monospace, monospace;
+      font-size: 13px;
+      color: #065f46;
+      font-weight: 600;
+      min-width: 60px;
+    }
+    .shape-panel .drawn-list {
+      list-style: none;
+      padding: 0;
+      margin: 8px 0 0;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .shape-panel .drawn-item {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      justify-content: space-between;
+      font-family: ui-monospace, monospace;
+      font-size: 12px;
+      background: rgba(0, 0, 0, 0.04);
+      border-radius: 8px;
+      padding: 6px 10px;
+    }
+    .shape-panel .shape-preview {
+      margin-top: 10px;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .shape-panel .shape-preview .sample {
+      font-family: ui-monospace, monospace;
+      color: rgba(0, 0, 0, 0.6);
+      word-break: break-all;
+    }
+    .shape-panel select,
+    .shape-panel input[type='range'] {
+      accent-color: #6ee7b7;
+    }
+  </style>
+
+  <div class="section-head">
+    <div>
+      <p class="section-label">Shape mode</p>
+      <h2>Draw the pattern you remember</h2>
+    </div>
+  </div>
+
+  <div class="shape-row">
+    <label>Search mode
+      <select id="shapeSearchMode">
+        <option value="graph">graph (full space)</option>
+        <option value="shape">shape (drawn + library)</option>
+        <option value="shape_then_graph">shape, then graph</option>
+      </select>
+    </label>
+    <label>Wildness <span id="shapeWildnessValue">1</span>
+      <input id="shapeWildness" type="range" min="0" max="3" step="1" value="1" />
+    </label>
+  </div>
+
+  <p class="section-label" style="margin-top: 12px">
+    Trace a stroke across the dots (click or drag)
+  </p>
+  <div id="shapeGrid" class="shape-grid"></div>
+
+  <div class="shape-row">
+    <span>Current: <span id="shapeCurrentSeq" class="shape-seq">-</span></span>
+    <input id="shapeNote" type="text" placeholder="note (optional)" maxlength="80" />
+    <button id="shapeAddButton" class="secondary" type="button">Add shape</button>
+    <button id="shapeClearButton" class="ghost" type="button">Clear</button>
+  </div>
+
+  <p class="section-label" style="margin-top: 12px">Shapes to try first</p>
+  <ul id="shapeDrawnList" class="drawn-list"></ul>
+
+  <div class="shape-row">
+    <button id="shapePreviewButton" class="secondary" type="button">Preview candidates</button>
+  </div>
+  <div id="shapePreview" class="shape-preview"></div>
+</section>

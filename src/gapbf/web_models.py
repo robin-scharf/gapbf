@@ -28,6 +28,10 @@ class CalculateTotalPathsRequest(BaseModel):
     config: dict[str, Any]
 
 
+class ShapePreviewRequest(BaseModel):
+    config: dict[str, Any]
+
+
 class StartRunRequest(BaseModel):
     mode: str = Field(default="a", min_length=1)
     config: dict[str, Any]
