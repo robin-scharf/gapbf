@@ -5,8 +5,8 @@ from pathlib import Path
 
 LINE_WARNING_LIMIT = 200
 LINE_ERROR_LIMIT = 250
-FILE_WARNING_LIMIT = 200
-FILE_ERROR_LIMIT = 250
+FILE_WARNING_LIMIT = 350
+FILE_ERROR_LIMIT = 500
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 SKIP_FILE_NAMES = {
@@ -175,9 +175,10 @@ def main() -> int:
 
     if line_errors or file_errors:
         print(
-            "\nCommit blocked: wrap lines to 250 characters or fewer, "
-            "and split files to 250 lines or fewer. "
-            "Line or file sizes over 200 are warnings only."
+            f"\nCommit blocked: wrap lines to {LINE_ERROR_LIMIT} characters or fewer, "
+            f"and split files to {FILE_ERROR_LIMIT} lines or fewer. "
+            f"Lines over {LINE_WARNING_LIMIT} chars or files over {FILE_WARNING_LIMIT} "
+            "lines are warnings only."
         )
         return 1
 

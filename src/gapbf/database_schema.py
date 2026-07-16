@@ -1,12 +1,26 @@
-# mypy: disable-error-code=attr-defined
 from __future__ import annotations
 
 import json
+import sqlite3
+from threading import Lock
+
+from .database_common import attempt_hash_for
+
+# Bump when the migration/backfill logic below changes. A database already at
+# this version skips the whole migrate+backfill+dedup pass on open, so opening
+# (which the web dashboard does on every poll) stays cheap.
+SCHEMA_VERSION = 1
 
 
 class DatabaseSchemaMixin:
+    _lock: Lock
+    connection: sqlite3.Connection
+
     def _ensure_schema(self) -> None:
         with self._lock:
+            current_version = self.connection.execute("PRAGMA user_version").fetchone()[0]
+            if current_version >= SCHEMA_VERSION:
+                return
             self.connection.executescript(
                 """
                 CREATE TABLE IF NOT EXISTS runs (
@@ -65,6 +79,7 @@ class DatabaseSchemaMixin:
                 ON attempts (attempt_hash)
                 """
             )
+            self.connection.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
             self.connection.commit()
 
     def _ensure_column_exists(self, table_name: str, column_name: str, definition: str) -> None:
@@ -130,7 +145,7 @@ class DatabaseSchemaMixin:
             self.connection.execute(
                 "UPDATE attempts SET attempt_hash = ? WHERE id = ?",
                 (
-                    self.attempt_hash_for(
+                    attempt_hash_for(
                         row["device_id"],
                         int(row["grid_size"] or 3),
                         row["attempt"],

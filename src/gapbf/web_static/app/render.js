@@ -162,7 +162,9 @@ function renderProgress() {
   if (!snapshot) {
     return
   }
-  const total = snapshot.total_paths
+  const configuredTotal = Number(state.config?.total_paths || 0)
+  const total =
+    snapshot.total_paths || (configuredTotal > 0 ? configuredTotal : null)
   const tested = snapshot.paths_tested || 0
   const percent = total ? (tested / total) * 100 : 0
 
@@ -201,9 +203,13 @@ function renderProgress() {
     snapshot.finished_at,
   )
   elements.runStatusBadge.textContent = snapshot.status || 'Idle'
-  elements.pauseButton.disabled = !snapshot.active || snapshot.paused
-  elements.resumeButton.disabled = !snapshot.active || !snapshot.paused
-  elements.stopButton.disabled = !snapshot.active
+  const controllable = Boolean(snapshot.controllable)
+  elements.startButton.disabled = Boolean(snapshot.active)
+  elements.pauseButton.disabled =
+    !snapshot.active || snapshot.paused || !controllable
+  elements.resumeButton.disabled =
+    !snapshot.active || !snapshot.paused || !controllable
+  elements.stopButton.disabled = !snapshot.active || !controllable
   elements.resetButton.disabled = Boolean(snapshot.active)
   elements.calculateTotalPathsButton.disabled =
     Boolean(snapshot.active) ||

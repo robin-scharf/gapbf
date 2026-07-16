@@ -71,6 +71,18 @@ class RunState:
                 "key_input_enabled": self.key_input_enabled,
             }
 
+    def get_quit_requested(self) -> bool:
+        with self._lock:
+            return self.quit_requested
+
+    def get_paused(self) -> bool:
+        with self._lock:
+            return self.paused
+
+    def get_total_paths(self) -> int | None:
+        with self._lock:
+            return self.total_paths
+
     def set_total_paths(self, total_paths: int) -> None:
         with self._lock:
             self.total_paths = total_paths
@@ -158,13 +170,13 @@ class RunController:
         self.state = state
 
     def should_stop(self) -> bool:
-        return bool(self.state.snapshot()["quit_requested"])
+        return self.state.get_quit_requested()
 
     def is_paused(self) -> bool:
-        return bool(self.state.snapshot()["paused"])
+        return self.state.get_paused()
 
     def total_paths_provider(self) -> int | None:
-        return self.state.snapshot()["total_paths"]
+        return self.state.get_total_paths()
 
     def on_path_selected(self, path: list[str]) -> None:
         self.state.set_current_path(path)

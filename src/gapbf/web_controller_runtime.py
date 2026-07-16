@@ -141,23 +141,23 @@ class WebRunControllerRuntimeMixin:
             "duration_ms": 0.0,
         }
 
+    def _total_paths_provider(self) -> int | None:
+        total_paths = self._state_value("total_paths")
+        return total_paths if isinstance(total_paths, int) else None
+
     def _run_search(self, session: RunSession) -> None:
         with self._lock:
             self._state["status"] = "running"
             self._state["last_feedback"] = "Running"
+            self._state["controllable"] = True
         self._publish("snapshot", self.snapshot())
         try:
             success, _resolved_path = execute_path_search(
                 session.path_finder,
-                should_stop=lambda: bool(self.snapshot()["stop_requested"]),
-                is_paused=lambda: bool(self.snapshot()["paused"]),
-                total_paths_provider=lambda: (
-                    self.snapshot()["total_paths"]
-                    if isinstance(self.snapshot()["total_paths"], int)
-                    or self.snapshot()["total_paths"] is None
-                    else None
-                ),
-                on_path_selected=lambda path: self._state.__setitem__(
+                should_stop=lambda: bool(self._state_value("stop_requested")),
+                is_paused=lambda: bool(self._state_value("paused")),
+                total_paths_provider=self._total_paths_provider,
+                on_path_selected=lambda path: self._set_state_value(
                     "current_path", "".join(path)
                 ),
                 on_attempt_completed=lambda path, result_success, result_path: (
@@ -171,6 +171,7 @@ class WebRunControllerRuntimeMixin:
                 self._state.update(
                     {
                         "active": False,
+                        "controllable": True,
                         "status": "completed",
                         "finished_at": utc_now_iso(),
                         "last_feedback": "Search completed without finding a successful pattern",
@@ -183,6 +184,7 @@ class WebRunControllerRuntimeMixin:
                 self._state.update(
                     {
                         "active": False,
+                        "controllable": True,
                         "status": "interrupted",
                         "finished_at": utc_now_iso(),
                         "last_feedback": "Search stopped by operator request",
@@ -196,6 +198,7 @@ class WebRunControllerRuntimeMixin:
                 self._state.update(
                     {
                         "active": False,
+                        "controllable": False,
                         "status": "error",
                         "finished_at": utc_now_iso(),
                         "error_message": str(error),
@@ -226,6 +229,7 @@ class WebRunControllerRuntimeMixin:
                 self._state.update(
                     {
                         "active": False,
+                        "controllable": True,
                         "status": "success",
                         "finished_at": utc_now_iso(),
                         "successful_path": resolved_path,

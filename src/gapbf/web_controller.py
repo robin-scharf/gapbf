@@ -95,6 +95,7 @@ class WebRunController(
             self._state.update(
                 {
                     "active": True,
+                    "controllable": True,
                     "status": "preparing",
                     "mode": validated_mode,
                     "config": serialize_config(config),
@@ -136,6 +137,7 @@ class WebRunController(
                     self._state.update(
                         {
                             "active": False,
+                            "controllable": True,
                             "status": "success",
                             "finished_at": utc_now_iso(),
                             "successful_path": session.known_successful_attempt,
@@ -168,6 +170,7 @@ class WebRunController(
                 self._state.update(
                     {
                         "active": False,
+                        "controllable": False,
                         "status": "error",
                         "finished_at": utc_now_iso(),
                         "error_message": str(error),

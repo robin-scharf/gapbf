@@ -74,6 +74,7 @@ export function createIdleSnapshot(defaultConfigPath, mode = 'a') {
   return {
     default_config_path: defaultConfigPath,
     active: false,
+    controllable: false,
     status: 'idle',
     mode,
     config: null,

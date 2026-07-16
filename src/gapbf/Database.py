@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
+from pathlib import Path
 from threading import Lock
 
 from .database_common import (
@@ -15,21 +16,33 @@ from .database_common import (
     stale_run_timeout_seconds,
     utc_now_iso,
 )
-from .database_operations import DatabaseOperationsMixin
 from .database_schema import DatabaseSchemaMixin
+from .database_stores import DatabaseStoreMixin
 
 
-class RunDatabase(DatabaseSchemaMixin, DatabaseOperationsMixin):
+class RunDatabase(DatabaseSchemaMixin, DatabaseStoreMixin):
     _lock: Lock
     connection: sqlite3.Connection
 
-    def __init__(self, db_path: str):
-        self.path = normalize_db_path(db_path)
+    def __init__(self, db_path: str, *, read_only: bool = False):
         self._lock = Lock()
-        self.connection = sqlite3.connect(self.path, check_same_thread=False)
+        if read_only:
+            # Never create or migrate. Used for the web dashboard, which opens
+            # caller-supplied paths — a read-only URI can't write a SQLite file
+            # to an arbitrary location. Raises OperationalError if absent.
+            self.path = Path(db_path).expanduser()
+            self.connection = sqlite3.connect(
+                f"file:{self.path}?mode=ro", uri=True, check_same_thread=False, timeout=30.0
+            )
+            self.connection.row_factory = sqlite3.Row
+            return
+        self.path = normalize_db_path(db_path)
+        self.connection = sqlite3.connect(self.path, check_same_thread=False, timeout=30.0)
         self.connection.row_factory = sqlite3.Row
         with self._lock:
             self.connection.execute("PRAGMA foreign_keys = ON")
+            self.connection.execute("PRAGMA journal_mode = WAL")
+            self.connection.execute("PRAGMA busy_timeout = 30000")
         self._ensure_schema()
 
     def close(self) -> None:

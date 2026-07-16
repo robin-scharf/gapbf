@@ -44,7 +44,7 @@ def create_app(default_config_path: str = "config.yaml") -> FastAPI:
 
     @app.get("/api/health")
     def health() -> dict[str, Any]:
-        snapshot = controller.snapshot()
+        snapshot = controller.monitored_snapshot()
         return {
             "ok": True,
             "active": snapshot["active"],
@@ -53,8 +53,8 @@ def create_app(default_config_path: str = "config.yaml") -> FastAPI:
         }
 
     @app.get("/api/state")
-    def state() -> dict[str, Any]:
-        return controller.snapshot()
+    def state(db_path: str | None = Query(None)) -> dict[str, Any]:
+        return controller.monitored_snapshot(db_path)
 
     @app.get("/api/config/meta")
     def config_meta_endpoint(grid_size: int = Query(3, ge=3, le=6)) -> dict[str, Any]:

@@ -9,6 +9,11 @@ import { loadConfig } from './config.js'
 let statePollTimer = null
 let statePollInFlight = false
 
+function monitoredStatePath() {
+  const dbPath = state.config?.db_path || '~/.gapbf/gapbf.db'
+  return `/api/state?db_path=${encodeURIComponent(dbPath)}`
+}
+
 export async function fetchInitialState() {
   const health = await api('/api/health')
   elements.connectionBadge.textContent = health.ok ? 'API ready' : 'API offline'
@@ -17,6 +22,9 @@ export async function fetchInitialState() {
   if (snapshot.default_config_path) {
     elements.configPath.value = snapshot.default_config_path
     await loadConfig(snapshot.default_config_path)
+    updateSnapshot(await api(monitoredStatePath()), {
+      preserveNotifications: false,
+    })
   } else {
     applyGridConfig(3, await api('/api/config/meta?grid_size=3'), {
       forceMaxLength: true,
@@ -62,7 +70,7 @@ export function startStatePolling() {
 
     statePollInFlight = true
     try {
-      const snapshot = await api('/api/state')
+      const snapshot = await api(monitoredStatePath())
       updateSnapshot(snapshot)
       renderAll()
       elements.connectionBadge.textContent = 'API ready'

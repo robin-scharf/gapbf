@@ -3,7 +3,7 @@ from concurrent.futures import Future
 from threading import Lock
 
 from .Config import valid_nodes_for_grid
-from .pathfinder_async import _run_async, calculate_total_paths_async
+from .pathfinder_async import _run_async
 from .pathfinder_counting import (
     build_indexed_moves,
     build_move_candidates,
@@ -187,4 +187,4 @@ class PathFinder(PathFinderTraversalMixin):
         return total_paths
 
 
-__all__ = ["PathFinder", "calculate_total_paths_async"]
+__all__ = ["PathFinder"]

@@ -7,7 +7,7 @@ import tty
 from concurrent.futures import Future
 from contextlib import AbstractContextManager
 from threading import Thread
-from typing import Any, Callable, TypedDict, TypeVar
+from typing import Any, Callable, TypeVar
 
 from rich.live import Live
 from rich.panel import Panel
@@ -15,35 +15,11 @@ from rich.table import Table
 from rich.text import Text
 
 from .cli_definitions import console, handler_classes
-from .Config import Config
-from .Database import ResumeInfo
 from .runtime import RunState
 
 ResultT = TypeVar("ResultT")
 SPINNER_FRAMES = "|/-\\"
 LiveRunState = RunState
-LiveRunSnapshot = TypedDict(
-    "LiveRunSnapshot",
-    {
-        "config": Config,
-        "mode": str,
-        "total_paths": int | None,
-        "total_paths_state": str,
-        "paths_tested": int,
-        "current_path": str,
-        "last_feedback": str,
-        "search_status": str,
-        "device_id": str | None,
-        "resume_info": ResumeInfo | None,
-        "started_at": float,
-        "successful_path": str | None,
-        "error_message": str | None,
-        "paused": bool,
-        "show_help": bool,
-        "quit_requested": bool,
-        "key_input_enabled": bool,
-    },
-)
 
 
 class TerminalKeyReader(AbstractContextManager["TerminalKeyReader"]):

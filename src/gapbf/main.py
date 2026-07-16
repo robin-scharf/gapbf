@@ -21,27 +21,13 @@ from .cli_runner import run_command_impl
 from .Config import Config
 from .Database import detect_device_id
 from .PathFinder import PathFinder
-from .runtime import load_resume_context, open_run_session
+from .runtime import create_path_finder, load_resume_context, open_run_session
 
 app = typer.Typer(
     add_completion=False,
     context_settings={"help_option_names": ["-h", "--help"]},
     no_args_is_help=True,
 )
-
-
-def create_path_finder(config: Config) -> PathFinder:
-    return PathFinder(
-        grid_size=config.grid_size,
-        path_min_len=config.path_min_length,
-        path_max_len=config.path_max_length,
-        path_max_node_distance=config.path_max_node_distance,
-        path_prefix=config.path_prefix,
-        path_suffix=config.path_suffix,
-        excluded_nodes=config.excluded_nodes,
-        no_diagonal_crossings=config.no_diagonal_crossings,
-        no_perpendicular_crossings=config.no_perpendicular_crossings,
-    )
 
 
 def _generate_sample_paths(path_finder, limit=10):
@@ -146,7 +132,9 @@ if __name__ == "__main__":
 
 
 __all__ = [
+    "Config",
     "LiveRunState",
+    "PathFinder",
     "_handle_live_keypress",
     "app",
     "create_path_finder",

@@ -104,6 +104,40 @@ class TestADBHandler:
         assert subprocess_run.call_count == 1
         reporter.show_adb_success.assert_called_once_with(["1", "2", "3"])
 
+    def test_handle_path_quotes_shell_metacharacter_nodes(self, mocker):
+        # Grid nodes like '<' '>' ';' '?' on 4x4+ layouts must be quoted for the
+        # remote shell or they act as redirections and never reach twrp decrypt.
+        config = Config(
+            grid_size=5,
+            path_min_length=4,
+            path_max_length=6,
+            stdout_normal="Failed to decrypt",
+            stdout_success="Data successfully decrypted",
+            stdout_error="",
+            adb_timeout=30,
+            echo_commands=False,
+        )
+        database = mocker.Mock()
+        database.get_terminal_attempt_history.return_value = {}
+        database.attempt_hash_for.return_value = "h"
+        database.get_terminal_attempt_entry.return_value = None
+        start_result = mocker.Mock(returncode=0, stdout="", stderr="")
+        decrypt_result = mocker.Mock(returncode=0, stdout="Failed to decrypt", stderr="")
+        subprocess_run = mocker.patch(
+            "gapbf.pathhandler_adb.subprocess.run", side_effect=[start_result, decrypt_result]
+        )
+        handler = ADBHandler(
+            config, database=database, run_id="run-1", device_id="SERIAL123", output=mocker.Mock()
+        )
+        handler.handle_path(["1", "2", "3", "4", "8", "<"], total_paths=100)
+
+        subprocess_run.assert_any_call(
+            ["adb", "shell", "twrp decrypt '12348<'"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+
     def test_handle_path_success(self, mocker):
         config = Config(
             grid_size=3,
@@ -136,7 +170,7 @@ class TestADBHandler:
         assert success is True
         assert path == ["1", "2", "3"]
         subprocess_run.assert_any_call(
-            ["adb", "shell", "twrp", "decrypt", "123"],
+            ["adb", "shell", "twrp decrypt 123"],
             capture_output=True,
             text=True,
             timeout=30,

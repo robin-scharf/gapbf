@@ -143,7 +143,8 @@ class TestFullIntegration:
                     result.stdout = ""
                     result.stderr = ""
                     return result
-                if "decrypt" in command and "1236" in command:
+                joined = " ".join(command)
+                if "decrypt" in joined and "1236" in joined:
                     result = Mock()
                     result.returncode = 0
                     result.stdout = "Data successfully decrypted"

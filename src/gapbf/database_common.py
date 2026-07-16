@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import subprocess
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -18,6 +20,19 @@ def normalize_db_path(db_path: str) -> Path:
     resolved = Path(db_path).expanduser()
     resolved.parent.mkdir(parents=True, exist_ok=True)
     return resolved
+
+
+def attempt_hash_for(device_id: str, grid_size: int, attempt: str) -> str:
+    payload = json.dumps(
+        {
+            "attempt": str(attempt),
+            "device_id": str(device_id),
+            "grid_size": int(grid_size),
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
 def detect_device_id(timeout_seconds: int = 30) -> str:

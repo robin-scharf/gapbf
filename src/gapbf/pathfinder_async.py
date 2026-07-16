@@ -2,13 +2,10 @@ from __future__ import annotations
 
 from concurrent.futures import Future
 from threading import Thread
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from .PathFinder import PathFinder
+from typing import Callable
 
 
-def _run_async(callback) -> Future[int]:
+def _run_async(callback: Callable[[], int]) -> Future[int]:
     future: Future[int] = Future()
 
     def runner() -> None:
@@ -21,7 +18,3 @@ def _run_async(callback) -> Future[int]:
 
     Thread(target=runner, name="gapbf-total-paths", daemon=True).start()
     return future
-
-
-def calculate_total_paths_async(path_finder: PathFinder) -> Future[int]:
-    return path_finder.calculate_total_paths_async()
