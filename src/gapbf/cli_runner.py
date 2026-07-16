@@ -19,6 +19,7 @@ from .cli_live import (
     render_live_dashboard,
     run_in_background,
 )
+from .notify import notify_success
 from .Output import Output
 from .runtime import RunController, RunSession, UserRequestedStop
 
@@ -49,6 +50,7 @@ def execute_search(
         if success:
             if successful_path is not None:
                 session.finish("success", successful_path)
+                notify_success(successful_path, session.device_id)
             console.print(render_live_dashboard(state, "GAPBF Live Run", allow_pause=True))
             console.print(f"Success: pattern found {successful_path}")
             console.print(f"Elapsed: {format_elapsed(elapsed_time)}")
