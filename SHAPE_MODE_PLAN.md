@@ -198,15 +198,18 @@ Remaining open items:
 - Best single-stroke drawable forms for each letter (esp. R, S) on a 5×5.
 
 ## 12. Phased implementation
-- **Phase 0** — this plan (review/approve).
-- **Phase 1 (unblocks the real recovery FAST, CLI-only)** — shape model + transform engine +
-  render/snap + legality filter + seed library (**R, S, RS, house, lines, corners**). Output a
-  deduped candidate dictionary. One self-check test (counts + a couple known snaps). *No UI yet.*
-- **Phase 2** — `ShapeCandidateSource` wired into the run as a prioritized source; `search_mode`
-  config; deploy to rs-bf; Telegram-on-hit. **→ start the actual month-long run here.**
-- **Phase 3** — web drawing canvas + notes + wildness slider + live count/ETA + launch.
-- **Phase 4** — full library (A–Z, digits, symbols), ranking polish, optional shape-identify label,
-  README "shape mode" section.
+- **Phase 0** — this plan. DONE.
+- **Phase 1 (CLI core)** — DONE. `shapes/{geometry,library,source,pathfinder}.py`, research-seeded
+  library, full-Android legality filter, empirical ranking, tests (`tests/test_shapes.py`).
+- **Phase 2** — DONE. `ShapePathFinder` + `search_mode` wired into the run; feeds the existing
+  ADB/DB/throttle/notify pipeline. Ready to deploy to rs-bf. (Live run pending phone on rs-bf.)
+- **Phase 3** — TODO. Web drawing canvas + notes + wildness slider + live count/ETA + launch.
+- **Phase 4** — TODO. full library polish, wildness-3 segment-drop + loose snap (currently 3 == 2),
+  optional shape-identify label, RS-monogram fidelity, README "shape mode" section.
+
+Known gaps to close in Phase 4: wildness 3 currently equals 2 (segment-drop/loose-snap not yet
+implemented); the "RS" joined monogram template yields 0 legal variants on 5x5 (R and S are each
+covered separately with 112 variants) — the drawing UI is the intended path for the exact joined form.
 
 ## 13. Recommendation on sequencing for the actual goal (the photos)
 Do **Phase 1 + 2 first and fast** (a curated R/S/RS/house/line dictionary is maybe a few hundred
