@@ -1,3 +1,4 @@
+import shlex
 import subprocess
 import time
 
@@ -92,14 +93,18 @@ class ADBHandler(PathHandler):
         )
 
         formatted_path = "".join(path)
+        # adb shell runs args through the device's /system/bin/sh, so nodes that
+        # are shell metacharacters (< > ; ? on 4x4+ grids) must be quoted for the
+        # REMOTE shell or they act as redirections and never reach twrp decrypt.
+        remote_path = shlex.quote(formatted_path)
         if self.config.echo_commands:
             command = [
                 "adb",
                 "shell",
-                f"echo '[GAPBF] Attempting: {formatted_path}' && twrp decrypt {formatted_path}",
+                f"echo [GAPBF] Attempting: {remote_path} && twrp decrypt {remote_path}",
             ]
         else:
-            command = ["adb", "shell", "twrp", "decrypt", formatted_path]
+            command = ["adb", "shell", f"twrp decrypt {remote_path}"]
 
         # Retry non-normal results (timeout / transport / unknown) with
         # exponential backoff; real decrypt outcomes break out immediately.
