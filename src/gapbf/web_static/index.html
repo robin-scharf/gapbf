@@ -8,66 +8,18 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="/assets/styles.css" />
+    <script type="importmap">
+      {
+        "imports": {
+          "preact": "/assets/vendor/preact.module.js",
+          "preact/hooks": "/assets/vendor/hooks.module.js",
+          "htm": "/assets/vendor/htm.module.js"
+        }
+      }
+    </script>
   </head>
   <body>
-    <div class="app-shell">
-      <header class="topbar">
-        <div>
-          <h1>GAPBF</h1>
-          <p class="overline">Graph-based Android Pattern Brute-Force console</p>
-        </div>
-        <div class="topbar-side">
-          <div id="topLinks"></div>
-          <div class="status-strip">
-            <div class="badge" id="connectionBadge">API ready</div>
-            <div class="badge badge-muted" id="runStatusBadge">Idle</div>
-          </div>
-        </div>
-      </header>
-
-      <div id="validationBanner" class="validation-banner hidden"></div>
-      <div id="successBanner" class="status-banner status-banner-success hidden"></div>
-
-      <main class="dashboard-grid">
-        {{ settings_panel }}
-
-        {{ shape_panel }}
-
-        {{ grid_panel }}
-
-        <section class="panel panel-status">
-          <div class="section-head section-head-status">
-            <div>
-              <p class="section-label">Status</p>
-              <h2>Live state</h2>
-            </div>
-            <div class="progress-inline">
-              <div class="progress-head"><span id="progressLabel">0 / Unknown</span><span id="progressPercent">0.00%</span></div>
-              <div class="progress-bar-track">
-                <div id="progressBar" class="progress-bar-fill"></div>
-              </div>
-              </div>
-          </div>
-
-          <div class="stats-list">
-            <div class="stat-row"><span>Device</span><strong id="deviceValue">-</strong></div>
-            <div class="stat-row"><span>Status</span><strong id="statusValue">Idle</strong></div>
-            <div class="stat-row"><span>Started</span><strong id="startedAtValue">-</strong></div>
-            <div class="stat-row"><span>Finished</span><strong id="finishedAtValue">-</strong></div>
-            <div class="stat-row"><span>Duration</span><strong id="durationValue">-</strong></div>
-            <div class="stat-row"><span>Total paths</span><strong id="totalPathsValue">Unknown</strong></div>
-            <div class="stat-row stat-row-compact"><span>Total count</span><strong id="totalPathsStateValue">Not started</strong>
-            </div>
-            <div class="stat-row"><span>Current path</span><strong id="currentPathValue">-</strong></div>
-          </div>
-        </section>
-
-        {{ log_panel }}
-
-        {{ controls_panel }}
-      </main>
-    </div>
-
-    <script src="/assets/app.js" type="module"></script>
+    <div id="app"></div>
+    <script type="module" src="/assets/ui/main.js"></script>
   </body>
 </html>

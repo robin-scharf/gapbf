@@ -1,11 +1,11 @@
 .app-shell {
   width: min(1380px, calc(100vw - 2rem));
-  height: 100dvh;
+  min-height: 100dvh;
   margin: 0 auto;
-  padding: 0.8rem 0 0.9rem;
-  display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr);
-  gap: 0.75rem;
+  padding: 1rem 0 5.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
 }
 
 .topbar {
@@ -129,58 +129,126 @@
   color: color-mix(in oklab, var(--start) 58%, black);
 }
 
+/* Mode switch (Graph vs Shape) ------------------------------------------- */
+.mode-switch {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  flex-wrap: wrap;
+}
+
+.mode-tabs {
+  display: inline-flex;
+  gap: 3px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-strong);
+}
+
+.mode-tab {
+  border: none;
+  background: transparent;
+  padding: 0.5rem 1.15rem;
+  border-radius: 999px;
+  color: var(--muted-strong);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.mode-tab.is-active {
+  background: white;
+  color: var(--text);
+  box-shadow: var(--shadow);
+}
+
+.mode-hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+  line-height: 1.35;
+  max-width: 40rem;
+}
+
+/* Workspace grid --------------------------------------------------------- */
 .dashboard-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  grid-template-rows: minmax(0, 1.02fr) minmax(23rem, 0.98fr) auto;
-  gap: 0.75rem;
-  min-height: 0;
+  grid-template-columns: minmax(340px, 460px) minmax(0, 1fr);
+  gap: 0.9rem;
+  align-items: start;
 }
 
 .panel {
   display: flex;
   flex-direction: column;
-  min-height: 0;
   min-width: 0;
-  overflow: hidden;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
-  padding: 0.9rem;
+  padding: 1.1rem 1.1rem 1.2rem;
   backdrop-filter: blur(16px);
 }
 
 .panel-settings {
-  grid-column: 1 / span 2;
+  grid-column: 1;
+  grid-row: 1 / span 2;
+}
+
+.panel-visualizer,
+.panel-shape {
+  grid-column: 2;
   grid-row: 1;
-  overflow: visible;
 }
 
 .panel-visualizer {
-  grid-column: 3 / span 2;
-  grid-row: 1;
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr) auto;
-  align-content: space-between;
+  grid-template-rows: auto auto 1fr auto;
   row-gap: clamp(0.75rem, 2vh, 1.35rem);
 }
 
 .panel-status {
-  grid-column: 1 / span 1;
+  grid-column: 2;
   grid-row: 2;
-  min-height: 23rem;
 }
 
 .panel-log {
-  grid-column: 2 / span 3;
-  grid-row: 2;
-  min-height: 23rem;
+  grid-column: 1 / -1;
+  grid-row: 3;
 }
 
 .panel-controls {
   grid-column: 1 / -1;
-  grid-row: 3;
+  grid-row: 4;
+  position: sticky;
+  bottom: 0.75rem;
+  z-index: 5;
+}
+
+/* Only the active search mode's workspace is shown */
+[data-search-mode="graph"] .panel-shape {
+  display: none;
+}
+
+[data-search-mode="shape"] .panel-visualizer,
+[data-search-mode="shape_then_graph"] .panel-visualizer {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .dashboard-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .panel-settings,
+  .panel-visualizer,
+  .panel-shape,
+  .panel-status,
+  .panel-log,
+  .panel-controls {
+    grid-column: 1;
+    grid-row: auto;
+  }
 }
 
 .section-head {

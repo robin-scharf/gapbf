@@ -1,0 +1,358 @@
+/* Component styles for the Preact UI (reuses tokens from base.css) */
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.strong {
+  font-weight: 700;
+}
+.muted {
+  color: var(--muted);
+}
+.ellipsis {
+  max-width: 22rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Reusable board -------------------------------------------------------- */
+.board2 {
+  display: grid;
+  gap: clamp(6px, 1.4vw, 12px);
+  padding: 14px;
+  width: 100%;
+  max-width: 360px;
+  margin: 0 auto;
+  background: rgba(0, 0, 0, 0.025);
+  border-radius: 16px;
+  touch-action: none;
+  user-select: none;
+}
+.board2-dot {
+  aspect-ratio: 1;
+  border-radius: 50%;
+  border: 2px solid var(--border-strong);
+  background: #fff;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+.board2-dot:hover {
+  border-color: var(--muted-strong);
+  transform: translateY(-1px);
+}
+.board2-dot.paint-prefix {
+  border-color: var(--prefix);
+  background: color-mix(in oklab, var(--prefix) 20%, white);
+  color: color-mix(in oklab, var(--prefix) 62%, black);
+}
+.board2-dot.paint-suffix {
+  border-color: var(--suffix);
+  background: color-mix(in oklab, var(--suffix) 20%, white);
+  color: color-mix(in oklab, var(--suffix) 62%, black);
+}
+.board2-dot.paint-excluded {
+  border-color: var(--excluded);
+  background: color-mix(in oklab, var(--excluded) 18%, white);
+  color: color-mix(in oklab, var(--excluded) 60%, black);
+}
+.board2-dot.paint-live {
+  border-color: var(--live);
+  background: color-mix(in oklab, var(--live) 18%, white);
+}
+.board2-dot.paint-on {
+  border-color: var(--start);
+  background: color-mix(in oklab, var(--start) 22%, white);
+  color: color-mix(in oklab, var(--start) 55%, black);
+}
+.board2-dot.paint-start {
+  border-color: #d97706;
+  background: color-mix(in oklab, #d97706 25%, white);
+  color: #7c2d12;
+}
+
+/* Tool chips (graph) ---------------------------------------------------- */
+.tool-tabs {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.2rem;
+}
+.tool-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  cursor: pointer;
+}
+.tool-chip.is-active {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow);
+}
+.tool-chip.chip-prefix.is-active {
+  border-color: var(--prefix);
+}
+.tool-chip.chip-suffix.is-active {
+  border-color: var(--suffix);
+}
+.tool-chip.chip-exclude.is-active {
+  border-color: var(--excluded);
+}
+.chip-name {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  font-weight: 600;
+}
+.chip-value {
+  font-size: 0.85rem;
+}
+.chip-clear {
+  color: var(--muted);
+  cursor: pointer;
+  padding: 0 0.25rem;
+  border-radius: 6px;
+  line-height: 1;
+}
+.chip-clear:hover {
+  color: var(--stop);
+}
+
+/* Fields ---------------------------------------------------------------- */
+.settings-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1.15rem;
+}
+.subsection {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+.subsection .form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.7rem;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.32rem;
+}
+.field-wide {
+  grid-column: 1 / -1;
+}
+.field-label-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.field-hint {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.05rem;
+  height: 1.05rem;
+  border-radius: 50%;
+  border: 1px solid var(--border-strong);
+  color: var(--muted);
+  font-size: 0.62rem;
+  font-style: italic;
+  font-weight: 700;
+  cursor: help;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.field-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+.toggle-row {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-top: 0.35rem;
+}
+.panel input[type='text'],
+.panel input[type='number'],
+.panel select {
+  width: 100%;
+  min-height: 2.3rem;
+  padding: 0.35rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--text);
+}
+.panel input[type='range'] {
+  width: 100%;
+  accent-color: var(--start);
+}
+.config-path-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+.config-path-row input {
+  flex: 1;
+}
+.save-note {
+  font-size: 0.82rem;
+  color: color-mix(in oklab, var(--start) 55%, black);
+}
+
+/* Shape panel ----------------------------------------------------------- */
+.field-wildness {
+  margin: 0.5rem 0 0.2rem;
+}
+.wild-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.5rem;
+  height: 1.5rem;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--start) 18%, white);
+  color: color-mix(in oklab, var(--start) 55%, black);
+  font-weight: 700;
+  font-size: 0.8rem;
+}
+.shape-actions {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 0.75rem;
+}
+.shape-actions input[type='text'] {
+  flex: 1;
+  min-width: 8rem;
+}
+.current-seq {
+  font-size: 0.85rem;
+}
+.drawn-list {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.drawn-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.45rem 0.7rem;
+  background: rgba(0, 0, 0, 0.035);
+  border-radius: 10px;
+  font-size: 0.85rem;
+}
+.shape-preview-row {
+  margin-top: 0.8rem;
+}
+.shape-preview {
+  margin-top: 0.7rem;
+  padding: 0.75rem 0.9rem;
+  border-radius: 12px;
+  background: color-mix(in oklab, var(--start) 7%, white);
+  border: 1px solid color-mix(in oklab, var(--start) 22%, var(--border));
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+.shape-preview.error {
+  background: color-mix(in oklab, var(--stop) 8%, white);
+  border-color: color-mix(in oklab, var(--stop) 25%, var(--border));
+}
+
+/* Controls -------------------------------------------------------------- */
+.controls-inner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem 1.25rem;
+  flex-wrap: wrap;
+}
+.run-modes {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+}
+.controls-row {
+  display: flex;
+  gap: 0.5rem;
+  flex: 1 1 auto;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+.panel-controls {
+  background: color-mix(in oklab, var(--surface) 88%, white);
+  border-color: var(--border-strong);
+}
+
+/* Log ------------------------------------------------------------------- */
+.log-scroll {
+  overflow: auto;
+  max-height: 22rem;
+  border-radius: 12px;
+}
+.pill {
+  display: inline-block;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  background: var(--surface-strong);
+  color: var(--muted-strong);
+}
+.pill-success {
+  background: color-mix(in oklab, var(--start) 22%, white);
+  color: color-mix(in oklab, var(--start) 60%, black);
+}
+.pill-timeout,
+.pill-unknown_response,
+.pill-transport_error,
+.pill-configured_error {
+  background: color-mix(in oklab, var(--excluded) 16%, white);
+  color: color-mix(in oklab, var(--excluded) 60%, black);
+}
+.empty-row {
+  text-align: center;
+  padding: 1.6rem;
+}
+
+/* Connection badge ------------------------------------------------------ */
+.badge-dot::before {
+  content: '';
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: currentColor;
+  margin-right: 0.4rem;
+}
+.badge-live {
+  color: color-mix(in oklab, var(--start) 60%, black);
+}
+.badge-connecting,
+.badge-reconnecting {
+  color: var(--muted);
+}
+.badge-offline {
+  color: var(--stop);
+}

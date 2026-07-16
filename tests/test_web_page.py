@@ -3,20 +3,25 @@ from fastapi.testclient import TestClient
 from gapbf.web import create_app
 
 
-def test_index_contains_success_banner(tmp_path):
+def test_index_serves_spa_shell(tmp_path):
     client = TestClient(create_app(str(tmp_path / "config.yaml")))
 
     response = client.get("/")
 
     assert response.status_code == 200
-    assert 'id="successBanner"' in response.text
-    assert 'id="copyConfigButton"' in response.text
-    assert 'id="downloadCsvButton"' in response.text
-    assert 'id="calculateTotalPathsButton"' in response.text
-    assert 'id="resetButton"' in response.text
-    assert 'id="totalPathsStateValue"' in response.text
-    assert 'id="finishedAtValue"' in response.text
-    assert 'id="durationValue"' in response.text
-    assert 'id="noDiagonalCrossings"' in response.text
-    assert 'id="noPerpendicularCrossings"' in response.text
-    assert "<th>Duration</th>" not in response.text
+    # The UI is now a Preact app mounted into #app (no server-side markup).
+    assert '<div id="app"></div>' in response.text
+    assert "/assets/ui/main.js" in response.text
+    assert '"preact"' in response.text  # import map
+
+
+def test_static_assets_served(tmp_path):
+    client = TestClient(create_app(str(tmp_path / "config.yaml")))
+
+    for path in (
+        "/assets/ui/main.js",
+        "/assets/ui/store.js",
+        "/assets/vendor/preact.module.js",
+        "/assets/styles.css",
+    ):
+        assert client.get(path).status_code == 200, path
