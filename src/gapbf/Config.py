@@ -69,6 +69,12 @@ class Config(BaseModel):
     total_paths: int = Field(default=0, ge=0)
     echo_commands: bool = True
 
+    # Shape-based candidate generation (see SHAPE_MODE_PLAN.md)
+    search_mode: str = "graph"  # "graph" | "shape" | "shape_then_graph"
+    shape_wildness: int = Field(default=1, ge=0, le=3)
+    shape_names: list[str] = Field(default_factory=list)  # subset of library; empty = all
+    drawn_shapes: list[list[str]] = Field(default_factory=list)  # user-drawn node sequences
+
     @model_validator(mode="before")
     @classmethod
     def apply_dynamic_defaults(cls, data: Any) -> Any:
@@ -80,6 +86,14 @@ class Config(BaseModel):
         grid_size = int(normalized.get("grid_size", 3))
         normalized.setdefault("path_max_node_distance", max(1, grid_size - 1))
         return normalized
+
+    @field_validator("search_mode")
+    @classmethod
+    def validate_search_mode(cls, value: str) -> str:
+        allowed = {"graph", "shape", "shape_then_graph"}
+        if value not in allowed:
+            raise ValueError(f"search_mode must be one of {sorted(allowed)}, got {value!r}")
+        return value
 
     @field_validator("grid_size")
     @classmethod

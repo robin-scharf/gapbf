@@ -64,6 +64,10 @@ class RunSession:
 
 
 def create_path_finder(config: Config) -> PathFinder:
+    if config.search_mode in ("shape", "shape_then_graph"):
+        from .shapes.pathfinder import ShapePathFinder
+
+        return ShapePathFinder(config)
     return PathFinder(
         grid_size=config.grid_size,
         path_min_len=config.path_min_length,
