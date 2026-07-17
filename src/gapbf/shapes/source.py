@@ -34,6 +34,7 @@ class ShapeCandidateSource:
             no_perpendicular_crossings=False,
         )
         self._coord = self.pf._coordinates  # node char -> (x, y)
+        self._node_at = {xy: node for node, xy in self._coord.items()}  # (x, y) -> node
         # what the owner believes about their pattern, used only for ranking
         self._pref_max_distance = config.path_max_node_distance
         # library = built-in + optional dict file
@@ -57,6 +58,25 @@ class ShapeCandidateSource:
             visited.add(node)
             prev = node
         return True
+
+    def grid_symmetries(self, seq: list[str]) -> list[list[str]]:
+        """Dihedral variants of a drawn pattern: 4 rotations x mirror, on the
+        grid, deduped and legality-filtered. Drawing one shape thus also tries
+        its rotated / mirrored / flipped siblings."""
+        n = self.n
+        coords = [self._coord[node] for node in seq]
+        out: list[list[str]] = []
+        seen: set[tuple[str, ...]] = set()
+        for do_mirror in (False, True):
+            pts = [(n - 1 - x, y) if do_mirror else (x, y) for (x, y) in coords]
+            for _ in range(4):
+                nodes = [self._node_at[p] for p in pts]
+                key = tuple(nodes)
+                if key not in seen and self.is_legal(nodes):
+                    seen.add(key)
+                    out.append(nodes)
+                pts = [(n - 1 - y, x) for (x, y) in pts]  # rotate 90° CW
+        return out
 
     # --- variation engine ----------------------------------------------------
     def _orientations(self, shape: Shape, wildness: int) -> list[tuple[Polyline, ...]]:
@@ -157,8 +177,8 @@ class ShapeCandidateSource:
             scored.append((sort_key, seq))
 
         for d in drawn:
-            if self.is_legal(list(d)):
-                add(list(d), -1, True)
+            for variant in self.grid_symmetries(list(d)):
+                add(variant, -1, True)
         for shape in sorted(shapes, key=lambda s: s.base_rank):
             for seq in self.expand(shape, wildness):
                 add(seq, shape.base_rank, False)

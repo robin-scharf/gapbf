@@ -76,6 +76,23 @@ class TestSourceRanking:
         assert len(src.candidates(wildness=0)) < len(src.candidates(wildness=1))
 
 
+class TestDrawnSymmetries:
+    def test_drawn_line_expands_to_rotations_and_mirror(self):
+        src = ShapeCandidateSource(_owner_cfg())
+        syms = src.grid_symmetries(['1', '2', '3', '4', '5'])  # top edge
+        assert all(src.is_legal(s) for s in syms)
+        assert len({tuple(s) for s in syms}) == len(syms)  # deduped
+        # a horizontal line must yield a vertical sibling
+        vertical = [s for s in syms if len({src._coord[n][0] for n in s}) == 1]
+        assert vertical
+
+    def test_drawn_symmetries_dedup_against_library(self):
+        src = ShapeCandidateSource(_owner_cfg())
+        diag = ['1', '7', '=', 'C', 'I']  # matches the built-in line-diag
+        cands = [''.join(c) for c in src.candidates(drawn=[diag], wildness=1)]
+        assert cands.count('17=CI') == 1  # never duplicated with the library
+
+
 class TestIntegration:
     def test_shape_mode_pathfinder(self):
         pf = create_path_finder(_owner_cfg(search_mode="shape", shape_wildness=1))
