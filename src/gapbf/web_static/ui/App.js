@@ -96,8 +96,8 @@ export function App() {
         <main class="dashboard-grid" data-search-mode=${config.search_mode}>
           <${SettingsPanel} />
           ${mode === 'graph' ? html`<${GraphPanel} />` : html`<${ShapePanel} />`}
-          <${StatusPanel} />
           <${ControlsBar} />
+          <${StatusPanel} />
           <${LogPanel} />
         </main>
       </div>
