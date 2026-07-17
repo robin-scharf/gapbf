@@ -46,11 +46,8 @@ _LETTERS = [
     Shape("L", _s((0, 0), (0, 1), (1, 1)), 6, ("letter",)),
     Shape("U", _s((0, 0), (0, 1), (1, 1), (1, 0)), 7, ("letter",)),
     Shape("V", _s((0, 0), (0.5, 1), (1, 0)), 8, ("letter",)),
-    Shape("C", _s((1, 0), (0, 0), (0, 1), (1, 1)), 9, ("letter",)),
-    Shape("N", _s((0, 1), (0, 0), (1, 1), (1, 0)), 10, ("letter",)),
     Shape("M", _s((0, 1), (0, 0), (0.5, 1), (1, 0), (1, 1)), 11, ("letter",)),
     Shape("W", _s((0, 0), (0.25, 1), (0.5, 0), (0.75, 1), (1, 0)), 12, ("letter",)),
-    Shape("O", _s((0, 0), (1, 0), (1, 1), (0, 1)), 13, ("letter",)),  # open box (no revisit)
     Shape("G", _s((1, 0), (0, 0), (0, 1), (1, 1), (1, 0.5), (0.5, 0.5)), 14, ("letter",)),
     Shape("A", _s((0, 1), (0.5, 0), (1, 1), (0.75, 0.5), (0.25, 0.5)), 16, ("letter",)),
     Shape("P", _s((0, 1), (0, 0), (1, 0), (1, 0.5), (0.5, 0.5)), 17, ("letter",)),
@@ -58,7 +55,6 @@ _LETTERS = [
 
 # ---- Tier C: digits -----------------------------------------------------------
 _DIGITS = [
-    Shape("2", _s((0, 0), (1, 0), (1, 0.5), (0, 0.5), (0, 1), (1, 1)), 20, ("digit",)),
     Shape("7", _s((0, 0), (1, 0), (0, 1)), 21, ("digit",)),
     Shape("1", _s((0.5, 0), (0.5, 1)), 22, ("digit",)),
     Shape("4", _s((1, 0), (0, 0.5), (1, 0.5), (1, 1)), 23, ("digit",)),
@@ -67,15 +63,11 @@ _DIGITS = [
 # ---- Tier D: geometric strokes ------------------------------------------------
 _GEOMETRIC = [
     Shape("line-diag", _s((0, 0), (1, 1)), 30, ("geometric", "line")),
-    Shape("line-antidiag", _s((1, 0), (0, 1)), 31, ("geometric", "line")),
+    # only one line per orbit: line-h covers line-v (rotation), line-diag covers
+    # line-antidiag (mirror) — since every shape auto-expands to its symmetries.
     Shape("line-h", _s((0, 0), (1, 0)), 32, ("geometric", "line")),
-    Shape("line-v", _s((0, 0), (0, 1)), 33, ("geometric", "line")),
-    Shape("corner-L", _s((0, 0), (0, 1), (1, 1)), 34, ("geometric",)),
-    Shape("box-open", _s((0, 0), (1, 0), (1, 1), (0, 1)), 35, ("geometric",)),
-    Shape("triangle", _s((0, 1), (0.5, 0), (1, 1)), 36, ("geometric",)),  # open (no revisit)
     Shape("zigzag", _s((0, 0), (1, 0.33), (0, 0.66), (1, 1)), 37, ("geometric",)),
     Shape("checkmark", _s((0, 0.5), (0.33, 1), (1, 0)), 38, ("geometric",)),
-    Shape("chevron", _s((0, 0), (1, 0.5), (0, 1)), 39, ("geometric",)),
 ]
 
 # ---- Tier E: household / objects ---------------------------------------------
