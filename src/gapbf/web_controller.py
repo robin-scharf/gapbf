@@ -19,6 +19,25 @@ from .web_models import (
 )
 
 
+def _attempted_paths(db_path: str, grid_size: int) -> set[str]:
+    """Distinct patterns already attempted on this grid (any device), read-only."""
+    import os
+    import sqlite3
+
+    path = os.path.expanduser(db_path)
+    if not os.path.exists(path):
+        return set()
+    try:
+        con = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+        rows = con.execute(
+            "SELECT DISTINCT attempt FROM attempts WHERE grid_size = ?", (grid_size,)
+        ).fetchall()
+        con.close()
+        return {r[0] for r in rows}
+    except sqlite3.Error:
+        return set()
+
+
 class WebRunController(
     WebRunControllerRuntimeMixin,
     WebRunControllerStateMixin,
@@ -101,12 +120,17 @@ class WebRunController(
             wildness=config.shape_wildness,
         )
         king = sum(1 for c in candidates if source._max_move_distance(c) == 1)
+        tried = _attempted_paths(config.db_path, config.grid_size)
+        joined = ["".join(c) for c in candidates]
+        new = [j for j in joined if j not in tried]
         return {
             "count": len(candidates),
+            "new_count": len(new),
+            "already_tried": len(candidates) - len(new),
             "king_count": king,
-            "eta_seconds": round(len(candidates) * config.attempt_delay),
+            "eta_seconds": round(len(new) * config.attempt_delay),  # only new attempts cost time
             "wildness": config.shape_wildness,
-            "sample": ["".join(c) for c in candidates[:15]],
+            "sample": new[:15] or joined[:15],
         }
 
     def library_preview(self, config_data: dict[str, Any]) -> dict[str, Any]:

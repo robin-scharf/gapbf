@@ -47,7 +47,9 @@ export function ShapePanel() {
 
   const addShape = () => {
     if (stroke.length < 2) return
-    setConfig({ drawn_shapes: [...(config.drawn_shapes || []), [...stroke]] })
+    const key = stroke.join('')
+    const dup = (config.drawn_shapes || []).some((s) => (Array.isArray(s) ? s.join('') : s) === key)
+    if (!dup) setConfig({ drawn_shapes: [...(config.drawn_shapes || []), [...stroke]] })
     setStroke([])
     setNote('')
   }
@@ -172,10 +174,10 @@ export function ShapePanel() {
       </div>
       ${preview && !preview.error
         ? html`<div class="shape-preview">
-            <strong>${preview.count.toLocaleString()}</strong> candidates ·
-            ${preview.king_count.toLocaleString()} king-move first ·
-            ~${(preview.eta_seconds / 3600).toFixed(1)} h<br />
-            <span class="mono muted">first: ${preview.sample.slice(0, 8).join('  ')}</span>
+            <strong>${(preview.new_count ?? preview.count).toLocaleString()}</strong> new candidates
+            ${preview.already_tried ? html` · <span class="muted">${preview.already_tried.toLocaleString()} already tried</span>` : null}
+            · ${preview.count.toLocaleString()} total · ~${(preview.eta_seconds / 3600).toFixed(1)} h<br />
+            <span class="mono muted">first new: ${preview.sample.slice(0, 8).join('  ')}</span>
           </div>`
         : null}
       ${preview?.error ? html`<div class="shape-preview error">${preview.error}</div>` : null}
