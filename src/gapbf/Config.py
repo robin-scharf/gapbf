@@ -74,6 +74,7 @@ class Config(BaseModel):
     shape_wildness: int = Field(default=1, ge=0, le=3)
     shape_names: list[str] = Field(default_factory=list)  # subset of library; empty = all
     drawn_shapes: list[list[str]] = Field(default_factory=list)  # user-drawn node sequences
+    shape_dict_path: str = ""  # optional JSON file of extra shapes, merged into the library
 
     @model_validator(mode="before")
     @classmethod

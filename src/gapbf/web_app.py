@@ -104,6 +104,13 @@ def create_app(default_config_path: str = "config.yaml") -> FastAPI:
         except Exception as error:
             raise HTTPException(status_code=400, detail=str(error)) from error
 
+    @app.post("/api/shapes/library")
+    def shapes_library(request: ShapePreviewRequest) -> dict[str, Any]:
+        try:
+            return controller.library_preview(request.config)
+        except Exception as error:
+            raise HTTPException(status_code=400, detail=str(error)) from error
+
     @app.get("/api/runs")
     def recent_runs(
         db_path: str = Query("~/.gapbf/gapbf.db"), limit: int = Query(20, ge=1, le=200)

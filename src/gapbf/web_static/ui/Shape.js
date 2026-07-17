@@ -1,8 +1,15 @@
 import { blockersBetween } from './pattern.js'
 import { previewShapes } from './api.js'
 import { Board } from './Board.js'
-import { html, useState } from './html.js'
+import { Fragment, html, useState } from './html.js'
+import { ShapeLibraryModal } from './ShapeLibrary.js'
 import { getState, setConfig, useStore } from './store.js'
+
+const strokePaint = (seq) => {
+  const p = {}
+  ;(Array.isArray(seq) ? seq : [...seq]).forEach((n, i) => (p[n] = i === 0 ? 'paint-start' : 'paint-on'))
+  return p
+}
 
 export function ShapePanel() {
   const { config } = useStore()
@@ -11,6 +18,7 @@ export function ShapePanel() {
   const [note, setNote] = useState('')
   const [preview, setPreview] = useState(null)
   const [busy, setBusy] = useState(false)
+  const [libOpen, setLibOpen] = useState(false)
 
   const addNode = (node) => {
     setStroke((cur) => {
@@ -50,8 +58,10 @@ export function ShapePanel() {
   }
 
   const drawn = config.drawn_shapes || []
+  const allSelected = !(config.shape_names || []).length
 
   return html`
+    <${Fragment}>
     <section class="panel panel-shape">
       <div class="section-head">
         <div><p class="section-label">Step 1 · Draw</p><h2>Draw the pattern you remember</h2></div>
@@ -88,19 +98,36 @@ export function ShapePanel() {
         <button class="button button-ghost" onclick=${() => setStroke([])}>Clear</button>
       </div>
 
-      <p class="section-label">Shapes to try first</p>
-      <ul class="drawn-list">
-        ${drawn.length
-          ? drawn.map(
-              (s, i) => html`
-                <li class="drawn-item">
+      <div class="cand-head">
+        <p class="section-label">Step 2 · Candidates to try first</p>
+        <button class="button button-ghost" onclick=${() => setLibOpen(true)}>Browse library</button>
+      </div>
+      <table class="cand-table">
+        <tbody>
+          <tr class="cand-lib-row">
+            <td class="cand-shape">
+              ${allSelected ? 'Built-in library — all shapes' : `Built-in library — ${(config.shape_names || []).length} selected`}
+            </td>
+            <td><span class="pill pill-library">library</span></td>
+            <td class="cand-actions"><button class="button button-ghost" onclick=${() => setLibOpen(true)}>Edit</button></td>
+          </tr>
+          ${drawn.map(
+            (s, i) => html`
+              <tr>
+                <td class="cand-shape">
+                  <${Board} gridSize=${grid} paint=${strokePaint(s)} interactive=${false} mini=${true} />
                   <span class="mono">${Array.isArray(s) ? s.join('') : s}</span>
-                  <button class="chip-clear" onclick=${() => removeShape(i)}>×</button>
-                </li>
-              `,
-            )
-          : html`<li class="drawn-item muted">No shapes added yet.</li>`}
-      </ul>
+                </td>
+                <td><span class="pill pill-drawn">drawn</span></td>
+                <td class="cand-actions"><button class="chip-clear" onclick=${() => removeShape(i)}>×</button></td>
+              </tr>
+            `,
+          )}
+          ${!drawn.length
+            ? html`<tr><td colspan="3" class="muted cand-empty">Draw a shape above and press <strong>Add shape</strong> to pin your own.</td></tr>`
+            : null}
+        </tbody>
+      </table>
 
       <div class="shape-preview-row">
         <button class="button button-ghost" disabled=${busy} onclick=${runPreview}>
@@ -117,5 +144,7 @@ export function ShapePanel() {
         : null}
       ${preview?.error ? html`<div class="shape-preview error">${preview.error}</div>` : null}
     </section>
+    ${libOpen ? html`<${ShapeLibraryModal} onClose=${() => setLibOpen(false)} />` : null}
+    </${Fragment}>
   `
 }

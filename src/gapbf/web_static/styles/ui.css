@@ -474,3 +474,150 @@
 .badge-idle {
   color: var(--muted);
 }
+
+/* Mini board (previews) ------------------------------------------------- */
+.board2-mini {
+  max-width: 92px;
+  gap: 3px;
+  padding: 6px;
+  margin: 0;
+  border-radius: 10px;
+}
+.board2-mini .board2-dot {
+  border-width: 1.5px;
+}
+.board2-mini .board2-dot span {
+  display: none;
+}
+.board2-static .board2-dot {
+  cursor: default;
+}
+.board2-static .board2-dot:hover {
+  transform: none;
+}
+
+/* Candidates table ------------------------------------------------------ */
+.cand-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.9rem;
+}
+.cand-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 0.4rem;
+}
+.cand-table td {
+  padding: 0.5rem 0.4rem;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+.cand-table tr:last-child td {
+  border-bottom: none;
+}
+.cand-shape {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  font-size: 0.85rem;
+}
+.cand-lib-row td {
+  font-size: 0.85rem;
+  color: var(--muted-strong);
+}
+.cand-actions {
+  text-align: right;
+  white-space: nowrap;
+}
+.cand-empty {
+  text-align: center;
+  padding: 1rem !important;
+}
+.pill-library {
+  background: color-mix(in oklab, var(--suffix) 16%, white);
+  color: color-mix(in oklab, var(--suffix) 58%, black);
+}
+.pill-drawn {
+  background: color-mix(in oklab, var(--start) 18%, white);
+  color: color-mix(in oklab, var(--start) 55%, black);
+}
+
+/* Shape library modal --------------------------------------------------- */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: oklch(0.15 0 0 / 0.4);
+  backdrop-filter: blur(3px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+}
+.modal {
+  width: min(920px, 100%);
+  max-height: 85vh;
+  overflow: auto;
+  background: var(--surface-strong);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  box-shadow: 0 24px 60px oklch(0.15 0 0 / 0.35);
+  padding: 1.2rem 1.3rem 1.4rem;
+}
+.modal-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 0.8rem;
+}
+.modal-head h3 {
+  margin: 0.1rem 0 0;
+}
+.modal-close {
+  font-size: 1.3rem;
+  line-height: 1;
+}
+.modal-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  padding-bottom: 0.9rem;
+  margin-bottom: 0.9rem;
+  border-bottom: 1px solid var(--border);
+}
+.modal-toolbar input {
+  flex: 1;
+  min-width: 12rem;
+}
+.shape-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
+  gap: 0.7rem;
+}
+.shape-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.6rem 0.4rem 0.5rem;
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  cursor: pointer;
+}
+.shape-card:hover {
+  border-color: var(--border-strong);
+}
+.shape-card.is-selected {
+  border-color: var(--start);
+  background: color-mix(in oklab, var(--start) 8%, white);
+  box-shadow: 0 0 0 1px var(--start) inset;
+}
+.shape-card-name {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text);
+}

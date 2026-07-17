@@ -12,7 +12,9 @@ finger); multi-stroke letters are approximated by one stroke.
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from .geometry import Polyline
 
@@ -98,3 +100,31 @@ _OBJECTS = [
 LIBRARY: list[Shape] = [*_INITIALS, *_LETTERS, *_DIGITS, *_GEOMETRIC, *_OBJECTS]
 
 BY_NAME: dict[str, Shape] = {s.name: s for s in LIBRARY}
+
+
+def load_extra_shapes(path: str) -> list[Shape]:
+    """Parse a JSON file of extra shapes: [{name, strokes:[[[x,y],...]], base_rank?, tags?}]."""
+    raw = json.loads(Path(path).expanduser().read_text(encoding="utf-8"))
+    shapes: list[Shape] = []
+    for item in raw:
+        strokes = tuple(
+            tuple((float(p[0]), float(p[1])) for p in stroke) for stroke in item["strokes"]
+        )
+        shapes.append(
+            Shape(
+                name=str(item["name"]),
+                strokes=strokes,
+                base_rank=int(item.get("base_rank", 100)),
+                tags=tuple(item.get("tags", ("custom",))),
+            )
+        )
+    return shapes
+
+
+def library_for(shape_dict_path: str = "") -> list[Shape]:
+    """Built-in library, plus any shapes from the config's dict file if present."""
+    if shape_dict_path:
+        p = Path(shape_dict_path).expanduser()
+        if p.exists():
+            return [*LIBRARY, *load_extra_shapes(str(p))]
+    return list(LIBRARY)

@@ -12,7 +12,6 @@ from collections.abc import Iterator
 
 from ..Config import Config
 from ..PathFinder import PathFinder
-from .library import BY_NAME
 from .source import ShapeCandidateSource
 
 
@@ -33,7 +32,7 @@ class ShapePathFinder(PathFinder):
         self._then_graph = config.search_mode == "shape_then_graph"
         source = ShapeCandidateSource(config)
         shapes = (
-            [BY_NAME[n] for n in config.shape_names if n in BY_NAME]
+            [source.by_name[n] for n in config.shape_names if n in source.by_name]
             if config.shape_names
             else None
         )

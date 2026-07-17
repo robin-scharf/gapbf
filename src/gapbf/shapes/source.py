@@ -13,7 +13,7 @@ from collections.abc import Iterable, Iterator
 from ..Config import Config
 from ..PathFinder import PathFinder
 from .geometry import Polyline, mirror, render_multi, reverse, rotate90
-from .library import LIBRARY, Shape
+from .library import Shape, library_for
 
 
 class ShapeCandidateSource:
@@ -36,6 +36,9 @@ class ShapeCandidateSource:
         self._coord = self.pf._coordinates  # node char -> (x, y)
         # what the owner believes about their pattern, used only for ranking
         self._pref_max_distance = config.path_max_node_distance
+        # library = built-in + optional dict file
+        self.library = library_for(config.shape_dict_path)
+        self.by_name = {s.name: s for s in self.library}
 
     # --- legality ------------------------------------------------------------
     def is_legal(self, seq: list[str]) -> bool:
@@ -136,7 +139,7 @@ class ShapeCandidateSource:
         drawn: Iterable[list[str]] = (),
         wildness: int = 1,
     ) -> list[list[str]]:
-        shapes = list(shapes) if shapes is not None else LIBRARY
+        shapes = list(shapes) if shapes is not None else self.library
         # Global ordering (each key ascending, lower = tried earlier):
         #   drawn-first, then king-move belief, then shape priority, then
         #   corner-start prior, then length prior. So all dist-1 candidates of

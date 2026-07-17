@@ -86,13 +86,12 @@ class WebRunController(
         return self.snapshot()
 
     def preview_shapes(self, config_data: dict[str, Any]) -> dict[str, Any]:
-        from .shapes.library import BY_NAME, LIBRARY
         from .shapes.source import ShapeCandidateSource
 
         config = config_from_payload(config_data)
         source = ShapeCandidateSource(config)
         shapes = (
-            [BY_NAME[n] for n in config.shape_names if n in BY_NAME]
+            [source.by_name[n] for n in config.shape_names if n in source.by_name]
             if config.shape_names
             else None
         )
@@ -108,7 +107,31 @@ class WebRunController(
             "eta_seconds": round(len(candidates) * config.attempt_delay),
             "wildness": config.shape_wildness,
             "sample": ["".join(c) for c in candidates[:15]],
-            "library": [{"name": s.name, "tags": list(s.tags)} for s in LIBRARY],
+        }
+
+    def library_preview(self, config_data: dict[str, Any]) -> dict[str, Any]:
+        """Every library shape with a representative legal rendering for previews."""
+        from .shapes.source import ShapeCandidateSource
+
+        config = config_from_payload(config_data)
+        source = ShapeCandidateSource(config)
+        selected_all = not config.shape_names
+        selected = set(config.shape_names or [])
+        shapes = []
+        for shape in source.library:
+            preview = next(iter(source.expand(shape, 0)), None)
+            shapes.append(
+                {
+                    "name": shape.name,
+                    "tags": list(shape.tags),
+                    "path": "".join(preview) if preview else "",
+                    "selected": selected_all or shape.name in selected,
+                }
+            )
+        return {
+            "grid_size": config.grid_size,
+            "shapes": shapes,
+            "all_selected": selected_all,
         }
 
     def start(self, config_data: dict[str, Any], mode: str) -> dict[str, Any]:
