@@ -1,7 +1,7 @@
 import { blockersBetween } from './pattern.js'
-import { previewShapes } from './api.js'
+import { api, previewShapes } from './api.js'
 import { Board } from './Board.js'
-import { Fragment, html, useState } from './html.js'
+import { Fragment, html, useEffect, useState } from './html.js'
 import { ShapeLibraryModal } from './ShapeLibrary.js'
 import { getState, setConfig, useStore } from './store.js'
 
@@ -19,6 +19,14 @@ export function ShapePanel() {
   const [preview, setPreview] = useState(null)
   const [busy, setBusy] = useState(false)
   const [libOpen, setLibOpen] = useState(false)
+  const [library, setLibrary] = useState([])
+
+  // fetch library previews once per grid / dict-file (selection is filtered client-side)
+  useEffect(() => {
+    api('/api/shapes/library', { method: 'POST', body: JSON.stringify({ config: getState().config }) })
+      .then((d) => setLibrary(d.shapes || []))
+      .catch(() => setLibrary([]))
+  }, [config.grid_size, config.shape_dict_path])
 
   const addNode = (node) => {
     setStroke((cur) => {
@@ -59,6 +67,18 @@ export function ShapePanel() {
 
   const drawn = config.drawn_shapes || []
   const allSelected = !(config.shape_names || []).length
+  const selectedLib = library.filter(
+    (s) => s.path && (allSelected || (config.shape_names || []).includes(s.name)),
+  )
+  const carousel = [
+    ...drawn.map((s, i) => ({
+      key: 'd' + i,
+      path: Array.isArray(s) ? s : [...s],
+      label: Array.isArray(s) ? s.join('') : s,
+      kind: 'drawn',
+    })),
+    ...selectedLib.map((s) => ({ key: 'l' + s.name, path: [...s.path], label: s.name, kind: 'lib' })),
+  ]
 
   return html`
     <${Fragment}>
@@ -97,6 +117,22 @@ export function ShapePanel() {
         <button class="button button-ghost" onclick=${addShape}>Add shape</button>
         <button class="button button-ghost" onclick=${() => setStroke([])}>Clear</button>
       </div>
+
+      ${carousel.length
+        ? html`
+            <p class="section-label carousel-head">Selected shapes · ${carousel.length}</p>
+            <div class="shape-carousel">
+              ${carousel.map(
+                (c) => html`
+                  <div class="carousel-item ${c.kind === 'drawn' ? 'is-drawn' : ''}" key=${c.key}>
+                    <${Board} gridSize=${grid} paint=${strokePaint(c.path)} interactive=${false} mini=${true} />
+                    <span class="carousel-label">${c.label}</span>
+                  </div>
+                `,
+              )}
+            </div>
+          `
+        : null}
 
       <div class="cand-head">
         <p class="section-label">Step 2 · Candidates to try first</p>

@@ -638,3 +638,46 @@
   border-radius: 10px;
   background: #fff;
 }
+
+/* Selected-shapes carousel --------------------------------------------- */
+.carousel-head {
+  margin-top: 0.9rem;
+}
+.shape-carousel {
+  display: flex;
+  gap: 0.55rem;
+  overflow-x: auto;
+  padding: 0.4rem 0.1rem 0.7rem;
+  scroll-snap-type: x proximity;
+}
+.carousel-item {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.3rem;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  scroll-snap-align: start;
+}
+.carousel-item.is-drawn {
+  border-color: color-mix(in oklab, var(--start) 30%, var(--border));
+  background: color-mix(in oklab, var(--start) 6%, white);
+}
+.carousel-item .board2-mini {
+  max-width: 66px;
+  padding: 4px;
+}
+.carousel-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--muted-strong);
+  max-width: 66px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.carousel-item.is-drawn .carousel-label {
+  color: color-mix(in oklab, var(--start) 55%, black);
+}
