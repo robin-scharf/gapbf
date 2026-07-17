@@ -119,7 +119,10 @@ class WebRunController(
         selected = set(config.shape_names or [])
         shapes = []
         for shape in source.library:
-            preview = next(iter(source.expand(shape, 0)), None)
+            # prefer the full-grid rendering; fall back to any scaled legal one
+            preview = next(iter(source.expand(shape, 0)), None) or next(
+                iter(source.expand(shape, 2)), None
+            )
             shapes.append(
                 {
                     "name": shape.name,
