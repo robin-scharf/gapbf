@@ -356,3 +356,121 @@
 .badge-offline {
   color: var(--stop);
 }
+
+/* Toasts ---------------------------------------------------------------- */
+.toast-stack {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-width: min(92vw, 24rem);
+}
+.toast {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.7rem 0.9rem;
+  border-radius: 12px;
+  box-shadow: 0 10px 30px oklch(0.15 0 0 / 0.18);
+  font-size: 0.9rem;
+  animation: toast-in 150ms ease;
+}
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: none; }
+}
+.toast-error {
+  background: color-mix(in oklab, var(--stop) 12%, white);
+  border: 1px solid color-mix(in oklab, var(--stop) 32%, var(--border));
+  color: color-mix(in oklab, var(--stop) 70%, black);
+}
+.toast-success {
+  background: color-mix(in oklab, var(--start) 14%, white);
+  border: 1px solid color-mix(in oklab, var(--start) 30%, var(--border));
+  color: color-mix(in oklab, var(--start) 58%, black);
+}
+
+/* Status: full-width 3-column ------------------------------------------- */
+.status-cols {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0 1.75rem;
+}
+.status-col {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.status-col .stat-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--border);
+}
+.status-col .stat-row:last-child {
+  border-bottom: none;
+}
+.status-col .stat-row strong {
+  font-weight: 600;
+  word-break: break-word;
+}
+.stat-progress {
+  gap: 0.35rem !important;
+}
+.progress-mini {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.progress-mini-head {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.82rem;
+  color: var(--muted-strong);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 720px) {
+  .status-cols {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Status pill + connection badge kinds ---------------------------------- */
+.pill-running,
+.pill-completed {
+  background: color-mix(in oklab, var(--start) 20%, white);
+  color: color-mix(in oklab, var(--start) 60%, black);
+}
+.pill-paused {
+  background: color-mix(in oklab, var(--suffix) 18%, white);
+  color: color-mix(in oklab, var(--suffix) 58%, black);
+}
+.pill-interrupted_or_crashed,
+.pill-error {
+  background: color-mix(in oklab, var(--stop) 14%, white);
+  color: color-mix(in oklab, var(--stop) 60%, black);
+}
+.badge-running {
+  color: color-mix(in oklab, var(--start) 60%, black);
+}
+.badge-completed {
+  color: color-mix(in oklab, var(--start) 55%, black);
+}
+.badge-paused {
+  color: color-mix(in oklab, var(--suffix) 55%, black);
+}
+.badge-interrupted_or_crashed,
+.badge-error {
+  color: var(--stop);
+}
+.badge-idle {
+  color: var(--muted);
+}

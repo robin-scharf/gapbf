@@ -1,16 +1,25 @@
 import { ControlsBar } from './Controls.js'
 import { GraphPanel } from './Graph.js'
-import { Fragment, html } from './html.js'
+import { Fragment, html, useEffect } from './html.js'
 import { SettingsPanel } from './Settings.js'
 import { ShapePanel } from './Shape.js'
 import { LogPanel, StatusPanel } from './Status.js'
-import { setConfig, useStore } from './store.js'
+import { set, setConfig, useStore } from './store.js'
 
 const HINTS = {
   graph:
     'Enumerate the full legal pattern space, ordered by your length, distance and crossing constraints.',
   shape:
     'Try human shapes first — initials, letters, lines — expanded into every plausible variation and ranked by real-world pattern data.',
+}
+
+function StatusPill() {
+  const { connection, snapshot } = useStore()
+  const runStatus = snapshot?.status
+  const showRun = runStatus && runStatus !== 'idle'
+  const kind = showRun ? runStatus : connection
+  const text = showRun ? runStatus : connection
+  return html`<span class="badge badge-dot badge-${kind}">${text}</span>`
 }
 
 function ModeSwitch() {
@@ -41,48 +50,58 @@ function ModeSwitch() {
   `
 }
 
-function Banners() {
+function Toasts() {
   const { validationErrors, successPath } = useStore()
+  useEffect(() => {
+    if (validationErrors.length) {
+      const t = setTimeout(() => set({ validationErrors: [] }), 4500)
+      return () => clearTimeout(t)
+    }
+  }, [validationErrors])
+  if (!validationErrors.length && !successPath) return null
   return html`
-    <${Fragment}>
-      ${validationErrors.length
-        ? html`<div class="validation-banner">${validationErrors.join(' · ')}</div>`
-        : null}
+    <div class="toast-stack">
+      ${validationErrors.map(
+        (e, i) => html`
+          <div class="toast toast-error" key=${i}>
+            <span>${e}</span>
+            <button class="chip-clear" onclick=${() => set({ validationErrors: [] })}>×</button>
+          </div>
+        `,
+      )}
       ${successPath
-        ? html`<div class="status-banner status-banner-success">
-            🎉 Pattern found:
-            <strong class="mono">${Array.isArray(successPath) ? successPath.join('') : successPath}</strong>
+        ? html`<div class="toast toast-success">
+            <span>🎉 Pattern found: <strong class="mono">${Array.isArray(successPath) ? successPath.join('') : successPath}</strong></span>
+            <button class="chip-clear" onclick=${() => set({ successPath: null })}>×</button>
           </div>`
         : null}
-    </${Fragment}>
+    </div>
   `
 }
 
 export function App() {
-  const { config, connection, snapshot } = useStore()
+  const { config } = useStore()
   const mode = config.search_mode === 'graph' ? 'graph' : 'shape'
-  const running = snapshot?.status || 'idle'
   return html`
-    <div class="app-shell">
-      <header class="topbar">
-        <div>
-          <h1>GAPBF</h1>
-          <p class="overline">Android pattern recovery console</p>
-        </div>
-        <div class="status-strip">
-          <span class="badge badge-dot badge-${connection}">${connection}</span>
-          <span class="badge badge-muted">${running}</span>
-        </div>
-      </header>
-      <${Banners} />
-      <${ModeSwitch} />
-      <main class="dashboard-grid" data-search-mode=${config.search_mode}>
-        <${SettingsPanel} />
-        ${mode === 'graph' ? html`<${GraphPanel} />` : html`<${ShapePanel} />`}
-        <${StatusPanel} />
-        <${LogPanel} />
-        <${ControlsBar} />
-      </main>
-    </div>
+    <${Fragment}>
+      <div class="app-shell">
+        <header class="topbar">
+          <div>
+            <h1>GAPBF</h1>
+            <p class="overline">Android pattern recovery console</p>
+          </div>
+          <div class="status-strip"><${StatusPill} /></div>
+        </header>
+        <${ModeSwitch} />
+        <main class="dashboard-grid" data-search-mode=${config.search_mode}>
+          <${SettingsPanel} />
+          ${mode === 'graph' ? html`<${GraphPanel} />` : html`<${ShapePanel} />`}
+          <${StatusPanel} />
+          <${ControlsBar} />
+          <${LogPanel} />
+        </main>
+      </div>
+      <${Toasts} />
+    </${Fragment}>
   `
 }

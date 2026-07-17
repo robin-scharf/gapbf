@@ -9,11 +9,19 @@
 }
 
 .topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
   display: flex;
   justify-content: space-between;
   gap: 1rem;
-  align-items: flex-start;
-  padding: 0.1rem 0;
+  align-items: center;
+  padding: 0.7rem 0.9rem;
+  margin: 0 -0.2rem;
+  background: color-mix(in oklab, var(--background) 80%, transparent);
+  backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--border);
+  border-radius: 0 0 14px 14px;
 }
 
 .topbar h1,
@@ -173,15 +181,17 @@
 /* Workspace grid --------------------------------------------------------- */
 .dashboard-grid {
   display: grid;
-  grid-template-columns: minmax(340px, 460px) minmax(0, 1fr);
+  grid-template-columns: 1fr 2fr; /* Configure : Draw = 1 : 2 */
+  grid-template-rows: var(--work-h) auto auto auto;
   gap: 0.9rem;
-  align-items: start;
+  --work-h: clamp(460px, 58vh, 720px);
 }
 
 .panel {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  min-height: 0;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -190,64 +200,51 @@
   backdrop-filter: blur(16px);
 }
 
+/* Row 1: Configure + Draw, same fixed height, internal scroll */
 .panel-settings {
   grid-column: 1;
-  grid-row: 1 / span 2;
+  grid-row: 1;
+  overflow-y: auto;
 }
 
 .panel-visualizer,
 .panel-shape {
   grid-column: 2;
   grid-row: 1;
+  overflow-y: auto;
 }
 
-.panel-visualizer {
-  display: grid;
-  grid-template-rows: auto auto 1fr auto;
-  row-gap: clamp(0.75rem, 2vh, 1.35rem);
-}
-
+/* Full-width stack below */
 .panel-status {
-  grid-column: 2;
-  grid-row: 2;
-}
-
-.panel-log {
   grid-column: 1 / -1;
-  grid-row: 3;
+  grid-row: 2;
 }
 
 .panel-controls {
   grid-column: 1 / -1;
+  grid-row: 3;
+}
+
+.panel-log {
+  grid-column: 1 / -1;
   grid-row: 4;
-  position: sticky;
-  bottom: 0.75rem;
-  z-index: 5;
-}
-
-/* Only the active search mode's workspace is shown */
-[data-search-mode="graph"] .panel-shape {
-  display: none;
-}
-
-[data-search-mode="shape"] .panel-visualizer,
-[data-search-mode="shape_then_graph"] .panel-visualizer {
-  display: none;
 }
 
 @media (max-width: 900px) {
   .dashboard-grid {
     grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: none;
   }
 
   .panel-settings,
   .panel-visualizer,
   .panel-shape,
   .panel-status,
-  .panel-log,
-  .panel-controls {
+  .panel-controls,
+  .panel-log {
     grid-column: 1;
     grid-row: auto;
+    overflow-y: visible;
   }
 }
 

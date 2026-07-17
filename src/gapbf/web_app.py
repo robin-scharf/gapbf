@@ -39,6 +39,14 @@ def create_app(default_config_path: str = "config.yaml") -> FastAPI:
     app.state.controller = controller
     app.mount("/assets", StaticFiles(directory=static_dir), name="assets")
 
+    @app.middleware("http")
+    async def no_store_assets(request: Any, call_next: Any) -> Any:
+        # Local control UI: never serve stale JS/CSS modules from the browser cache.
+        response = await call_next(request)
+        if request.url.path.startswith("/assets"):
+            response.headers["Cache-Control"] = "no-store"
+        return response
+
     @app.get("/")
     def index() -> HTMLResponse:
         return HTMLResponse(render_index_html(str(static_dir)))

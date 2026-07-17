@@ -1,37 +1,78 @@
-import { html } from './html.js'
+import { html, useEffect, useState } from './html.js'
 import { useStore } from './store.js'
 
 const row = (k, v) =>
   html`<div class="stat-row"><span>${k}</span><strong>${v}</strong></div>`
 
+function parseTs(ts) {
+  if (!ts) return null
+  const d = new Date(ts)
+  return Number.isNaN(d.getTime()) ? null : d
+}
+function fmtClock(ts) {
+  const d = parseTs(ts)
+  return d ? d.toLocaleString() : '—'
+}
+function fmtElapsed(sec) {
+  if (sec == null || sec < 0) return '—'
+  const h = Math.floor(sec / 3600)
+  const m = Math.floor((sec % 3600) / 60)
+  const s = Math.floor(sec % 60)
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+}
+
 export function StatusPanel() {
   const { snapshot } = useStore()
   const s = snapshot || {}
+  const [, tick] = useState(0)
+
+  const running = s.status === 'running'
+  useEffect(() => {
+    if (!running) return
+    const id = setInterval(() => tick((n) => n + 1), 1000)
+    return () => clearInterval(id)
+  }, [running])
+
   const total = s.total_paths
   const tested = s.paths_tested || 0
   const percent = total ? Math.min(100, (tested / total) * 100) : 0
+  const started = parseTs(s.started_at)
+  const finished = parseTs(s.finished_at)
+  const elapsedSec = started ? ((finished || new Date()) - started) / 1000 : null
+
   return html`
     <section class="panel panel-status">
-      <div class="section-head section-head-status">
+      <div class="section-head">
         <div><p class="section-label">Status</p><h2>Live state</h2></div>
-        <div class="progress-inline">
-          <div class="progress-head">
-            <span>${tested.toLocaleString()} / ${total ? total.toLocaleString() : 'Unknown'}</span>
-            <span>${percent.toFixed(2)}%</span>
-          </div>
-          <div class="progress-bar-track">
-            <div class="progress-bar-fill" style=${`width:${percent}%`}></div>
-          </div>
-        </div>
+        <span class="pill pill-${s.status || 'idle'}">${s.status || 'idle'}</span>
       </div>
-      <div class="stats-list">
-        ${row('Device', s.device_id || '—')}
-        ${row('Status', s.status || 'idle')}
-        ${row('Current path', s.current_path ? html`<span class="mono">${s.current_path}</span>` : '—')}
-        ${row('Total paths', total ? total.toLocaleString() : 'Unknown')}
-        ${row('Feedback', s.last_feedback || '—')}
-        ${row('Started', s.started_at || '—')}
-        ${row('Finished', s.finished_at || '—')}
+      <div class="status-cols">
+        <div class="status-col">
+          ${row('Device', s.device_id ? html`<span class="mono">${s.device_id}</span>` : '—')}
+          ${row('Status', s.status || 'idle')}
+          ${row('Feedback', s.last_feedback || '—')}
+        </div>
+        <div class="status-col">
+          <div class="stat-row stat-progress">
+            <span>Progress</span>
+            <div class="progress-mini">
+              <div class="progress-mini-head">
+                <span>${tested.toLocaleString()} / ${total ? total.toLocaleString() : '—'}</span>
+                <span>${percent.toFixed(1)}%</span>
+              </div>
+              <div class="progress-bar-track">
+                <div class="progress-bar-fill" style=${`width:${percent}%`}></div>
+              </div>
+            </div>
+          </div>
+          ${row('Current path', s.current_path ? html`<span class="mono">${s.current_path}</span>` : '—')}
+          ${row('Total paths', total ? total.toLocaleString() : 'Unknown')}
+        </div>
+        <div class="status-col">
+          ${row('Started', fmtClock(s.started_at))}
+          ${row('Elapsed', fmtElapsed(elapsedSec))}
+          ${row('Finished', fmtClock(s.finished_at))}
+        </div>
       </div>
     </section>
   `
