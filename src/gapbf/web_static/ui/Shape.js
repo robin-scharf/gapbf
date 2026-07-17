@@ -1,4 +1,4 @@
-import { blockersBetween } from './pattern.js'
+import { blockersBetween, gridSymmetries } from './pattern.js'
 import { api, previewShapes } from './api.js'
 import { Board } from './Board.js'
 import { Fragment, html, useEffect, useState } from './html.js'
@@ -9,6 +9,41 @@ const strokePaint = (seq) => {
   const p = {}
   ;(Array.isArray(seq) ? seq : [...seq]).forEach((n, i) => (p[n] = i === 0 ? 'paint-start' : 'paint-on'))
   return p
+}
+
+// Hover explainer: how a drawn shape is expanded + deduped.
+function ShapeInfo() {
+  const g = 3
+  const example = ['1', '4', '7', '8', '9'] // an L on a 3x3
+  const syms = gridSymmetries(example, g)
+  return html`
+    <span class="info-pop" tabindex="0">
+      <span class="field-hint">i</span>
+      <span class="info-pop-body">
+        <strong>Every drawn shape is expanded</strong>
+        <p>
+          When you draw a shape, GAPBF automatically also tries all 4 rotations plus its
+          mirror/flip. Identical results — and any that match the library or another shape —
+          are removed, so nothing is ever tried twice.
+        </p>
+        <div class="info-graphic">
+          <div class="ig-col">
+            <span class="ig-label">You draw</span>
+            <${Board} gridSize=${g} paint=${strokePaint(example)} interactive=${false} mini=${true} />
+          </div>
+          <span class="ig-arrow">→</span>
+          <div class="ig-col">
+            <span class="ig-label">We try (${syms.length}, deduped)</span>
+            <div class="ig-variants">
+              ${syms.map(
+                (s) => html`<${Board} gridSize=${g} paint=${strokePaint(s)} interactive=${false} mini=${true} />`,
+              )}
+            </div>
+          </div>
+        </div>
+      </span>
+    </span>
+  `
 }
 
 export function ShapePanel() {
@@ -122,7 +157,7 @@ export function ShapePanel() {
 
       ${carousel.length
         ? html`
-            <p class="section-label carousel-head">Selected shapes · ${carousel.length}</p>
+            <p class="section-label carousel-head">Selected shapes · ${carousel.length} <${ShapeInfo} /></p>
             <div class="shape-carousel">
               ${carousel.map(
                 (c) => html`

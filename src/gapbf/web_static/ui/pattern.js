@@ -248,3 +248,30 @@ export function isSelectableNode(state, tool, node, gridSize) {
     gridSize,
   )
 }
+
+// Dihedral variants of a pattern (4 rotations x mirror), deduped. Mirrors the
+// backend ShapeCandidateSource.grid_symmetries; used for the UI explainer.
+export function gridSymmetries(seq, gridSize) {
+  const coords = coordinatesForGrid(gridSize)
+  const nodeAt = new Map()
+  for (const [node, { x, y }] of coords) nodeAt.set(`${x},${y}`, node)
+  const n = gridSize
+  const out = []
+  const seen = new Set()
+  for (const mir of [false, true]) {
+    let pts = seq.map((node) => {
+      const { x, y } = coords.get(node)
+      return mir ? [n - 1 - x, y] : [x, y]
+    })
+    for (let r = 0; r < 4; r++) {
+      const nodes = pts.map(([x, y]) => nodeAt.get(`${x},${y}`))
+      const key = nodes.join('')
+      if (!seen.has(key)) {
+        seen.add(key)
+        out.push(nodes)
+      }
+      pts = pts.map(([x, y]) => [n - 1 - y, x]) // rotate 90 CW
+    }
+  }
+  return out
+}

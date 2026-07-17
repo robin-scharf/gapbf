@@ -681,3 +681,77 @@
 .carousel-item.is-drawn .carousel-label {
   color: color-mix(in oklab, var(--start) 55%, black);
 }
+
+/* Shape-expansion info popover ----------------------------------------- */
+.info-pop {
+  position: relative;
+  display: inline-flex;
+  vertical-align: middle;
+}
+.info-pop .field-hint {
+  cursor: help;
+}
+.info-pop-body {
+  display: none;
+  position: absolute;
+  top: 1.5rem;
+  left: 0;
+  z-index: 60;
+  width: 320px;
+  max-width: 80vw;
+  padding: 0.85rem;
+  background: var(--surface-strong);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 16px 44px oklch(0.15 0 0 / 0.28);
+  font-size: 0.82rem;
+  line-height: 1.45;
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 400;
+  color: var(--text);
+  white-space: normal;
+}
+.info-pop:hover .info-pop-body,
+.info-pop:focus-within .info-pop-body {
+  display: block;
+}
+.info-pop-body strong {
+  font-size: 0.85rem;
+}
+.info-pop-body p {
+  margin: 0.4rem 0 0.75rem;
+  color: var(--muted-strong);
+}
+.info-graphic {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+}
+.ig-col {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.ig-label {
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  font-weight: 600;
+}
+.ig-arrow {
+  align-self: center;
+  color: var(--muted);
+  font-size: 1.1rem;
+}
+.ig-variants {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+}
+.info-graphic .board2-mini {
+  max-width: 46px;
+  padding: 3px;
+  gap: 2px;
+}
